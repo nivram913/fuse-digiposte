@@ -188,8 +188,8 @@ int remove_folder_rec(struct c_folder *parent, const int index)
 
     ptr = parent->folders[index];
 
-    for (i=0; i<ptr->nb_files; i++) remove_file(ptr, 0);
-    for (i=0; i<ptr->nb_folders; i++) remove_folder_rec(ptr, 0);
+    for (i=ptr->nb_files-1; i>=0; i--) remove_file(ptr, i);
+    for (i=ptr->nb_folders-1; i>=0; i--) remove_folder_rec(ptr, i);
 
     return remove_folder(parent, index);
 }
@@ -204,8 +204,8 @@ void free_root(struct c_folder *root)
         return -EINVAL;
     }
 
-    for (i=0; i<root->nb_files; i++) remove_file(root, 0);
-    for (i=0; i<root->nb_folders; i++) remove_folder_rec(root, 0);
+    for (i=root->nb_files; i>=0; i--) remove_file(root, i);
+    for (i=root->nb_folders; i>=0; i--) remove_folder_rec(root, i);
 
     free(root->name);
     free(root);
