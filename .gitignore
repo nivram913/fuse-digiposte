@@ -1,0 +1,4 @@
+*.o
+fuse-digiposte
+.vscode
+.depend
