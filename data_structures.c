@@ -2,7 +2,6 @@
 
 c_folder* add_folder(struct c_folder *parent, const char *id, const char *name)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     c_folder *new, **folder_table;
     int name_len = 0;
 
@@ -57,7 +56,6 @@ c_folder* add_folder(struct c_folder *parent, const char *id, const char *name)
 
 c_file* add_file(struct c_folder *parent, const char *id, const char *name, const size_t size)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     c_file *new, **file_table;
     int name_len = 0;
 
@@ -104,7 +102,6 @@ c_file* add_file(struct c_folder *parent, const char *id, const char *name, cons
 
 int remove_file(struct c_folder *parent, const int index)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     int i = index;
     c_file *ptr, **file_table;
 
@@ -138,7 +135,6 @@ int remove_file(struct c_folder *parent, const int index)
 
 int remove_folder(struct c_folder *parent, const int index)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     c_folder *ptr, **folder_table;
     int i = index;
 
@@ -177,7 +173,6 @@ int remove_folder(struct c_folder *parent, const int index)
 
 int remove_folder_rec(struct c_folder *parent, const int index)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     c_folder *ptr;
     int i;
 
@@ -196,7 +191,6 @@ int remove_folder_rec(struct c_folder *parent, const int index)
 
 void free_root(struct c_folder *root)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     int i;
 
     if (root == NULL) {
@@ -213,7 +207,6 @@ void free_root(struct c_folder *root)
 
 int find_file_name(const c_folder *base, const char *name)
 {
-    fprintf(stderr, "Entering %s(name=%s)\n", __func__, name);
     int i = 0;
 
     if (base == NULL) return -1;
@@ -228,7 +221,6 @@ int find_file_name(const c_folder *base, const char *name)
 
 int find_folder_name(const c_folder *base, const char *name)
 {
-    fprintf(stderr, "Entering %s(name=%s)\n", __func__, name);
     int i = 0;
 
     if (base == NULL) return -1;
@@ -243,7 +235,6 @@ int find_folder_name(const c_folder *base, const char *name)
 
 int find_file_id(const c_folder *base, const char *id)
 {
-    fprintf(stderr, "Entering %s\n", __func__);
     int i = 0;
 
     if (base == NULL) return -1;
@@ -258,7 +249,6 @@ int find_file_id(const c_folder *base, const char *id)
 
 int find_folder_id(const c_folder *base, const char *id)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     int i = 0;
 
     if (base == NULL) return -1;

@@ -10,7 +10,6 @@ static char *authorization_token;
 
 static size_t write_callback(char *ptr, size_t size, size_t nmemb, void *userdata)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     size_t realsize;
     char *tmp;
 
@@ -33,7 +32,6 @@ static size_t write_callback(char *ptr, size_t size, size_t nmemb, void *userdat
 
 int init_api(const char *authorization)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     CURLcode code;
     int len;
 
@@ -77,7 +75,6 @@ int init_api(const char *authorization)
 
 void free_api()
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     curl_easy_cleanup(curl_handle);
     curl_global_cleanup();
     free(response);
@@ -86,7 +83,6 @@ void free_api()
 
 static int perform_get(const char *url)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     CURLcode code;
     struct curl_slist *slist = NULL;
 
@@ -131,7 +127,6 @@ static int perform_get(const char *url)
 
 static int perform_post(const char *url, const char *data, const int len)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     CURLcode code;
     struct curl_slist *slist = NULL;
 
@@ -189,19 +184,16 @@ static int perform_post(const char *url, const char *data, const int len)
 
 static int perform_put(const char *url)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     return 0;
 }
 
 static int perform_delete(const char *url)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     return 0;
 }
 
 static void construct_folder_rec(c_folder *folder, json_object *root)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     int n, i;
     json_object *j_folders, *tmp, *field_id, *field_name;
     c_folder *new;
@@ -221,7 +213,6 @@ static void construct_folder_rec(c_folder *folder, json_object *root)
 
 c_folder* get_folders()
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     c_folder *folder;
     json_object *root;
     int r, n, i;
@@ -249,7 +240,6 @@ c_folder* get_folders()
 
 int get_folder_content(c_folder *folder)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     json_object *root, *j_file, *field_id, *field_name, *field_size, *tmp;
     int r, i, n, post_data_len;
     char post_data[77];
@@ -295,7 +285,6 @@ int get_folder_content(c_folder *folder)
 
 int get_file(c_file *file, const char *dest_path)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     return -1;
 }
 
@@ -303,24 +292,20 @@ int get_file(c_file *file, const char *dest_path)
 
 int create_folder(const char *name)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     return -EROFS;
 }
 
 int delete_item(const char *id)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     return -EROFS;
 }
 
 int rename_folder(const char *id, const char *new_name)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     return -EROFS;
 }
 
 int rename_file(const char *id, const char *new_name)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     return -EROFS;
 }

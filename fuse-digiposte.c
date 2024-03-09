@@ -2,13 +2,11 @@
 
 static int folder_cache_fault(c_folder *folder)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     return get_folder_content(folder);
 }
 
 static int file_cache_fault(c_file *file)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     return -1;
 }
 
@@ -19,8 +17,6 @@ If path doesn't exist or error occured, return NULL
 */
 static c_folder* resolve_path(const char *path, int *index, const dgp_ctx *ctx)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
-    fprintf(stderr, "\tPath: %s\n", path);
     int path_len, path_i, subpath_i, i;
     char type = -1;
     char subpath[PATH_MAX];
@@ -69,11 +65,8 @@ static c_folder* resolve_path(const char *path, int *index, const dgp_ctx *ctx)
     return NULL;
 }
 
-static int fill_dir_plus = 0;
-
 static void *dgp_init(struct fuse_conn_info *conn, struct fuse_config *cfg)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     dgp_ctx *ctx;
 
     cfg->use_ino = 0;
@@ -83,15 +76,9 @@ static void *dgp_init(struct fuse_conn_info *conn, struct fuse_config *cfg)
     cfg->attr_timeout = 0;
     cfg->negative_timeout = 0;
 
-    ctx = malloc(sizeof(dgp_ctx));
-    if (ctx == NULL) {
-        perror("malloc()");
-        exit(-errno);
-    }
-    ctx->dgp_root = NULL;
-    ctx->root_loaded = 0;
+    ctx = fuse_get_context()->private_data;
 
-    if (init_api(AUTHORIZATION_TOKEN) == -1) {
+    if (init_api(ctx->authrization_token) == -1) {
         free(ctx);
         fputs("init_api(): error\n", stderr);
         exit(-1);
@@ -111,13 +98,13 @@ static void *dgp_init(struct fuse_conn_info *conn, struct fuse_config *cfg)
 
 static void *dgp_destroy(void* private_data)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     dgp_ctx *ctx = (dgp_ctx*)private_data;
 
     //sync fs
 
     free_root(ctx->dgp_root);
     free_api();
+    free(ctx->authrization_token);
     free(ctx);
 
     //delete cached file
@@ -127,7 +114,6 @@ static void *dgp_destroy(void* private_data)
 
 static int dgp_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     c_folder *folder;
     int index;
     struct timespec now;
@@ -175,14 +161,12 @@ static int dgp_getattr(const char *path, struct stat *stbuf, struct fuse_file_in
         stbuf->st_ctim = now;
     }
 
-    fprintf(stderr, "\t%s() tells %s is %s with %o\n", __func__, path, S_ISREG(stbuf->st_mode)?"a file":"a directory", stbuf->st_mode);
 
     return 0;
 }
 
 static int dgp_access(const char *path, int mask)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     struct stat stbuf;
 
     if (dgp_getattr(path, &stbuf, NULL) == -ENOENT) return -ENOENT;
@@ -195,7 +179,6 @@ static int dgp_access(const char *path, int mask)
 static int dgp_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset,
                        struct fuse_file_info *fi, enum fuse_readdir_flags flags)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     c_folder *folder;
     int index;
     struct stat st;
@@ -210,7 +193,7 @@ static int dgp_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_
         memset(&st, 0, sizeof(st));
         st.st_ino = 0;
         st.st_mode = (S_IFMT & S_IFDIR) | S_IRUSR | S_IXUSR | S_IRGRP | S_IXGRP;
-        if (filler(buf, folder->folders[index]->name, &st, 0, fill_dir_plus))
+        if (filler(buf, folder->folders[index]->name, &st, 0, 0))
             return 0;
     }
 
@@ -219,7 +202,7 @@ static int dgp_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_
         memset(&st, 0, sizeof(st));
         st.st_ino = 0;
         st.st_mode = (S_IFMT & S_IFREG) | S_IRUSR | S_IRGRP;
-        if (filler(buf, folder->files[index]->name, &st, 0, fill_dir_plus))
+        if (filler(buf, folder->files[index]->name, &st, 0, 0))
             break;
     }
 
@@ -228,67 +211,56 @@ static int dgp_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_
 
 static int dgp_mknod(const char *path, mode_t mode, dev_t rdev)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     return -EROFS;
 }
 
 static int dgp_mkdir(const char *path, mode_t mode)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     return -EROFS;
 }
 
 static int dgp_unlink(const char *path)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     return -EROFS;
 }
 
 static int dgp_rmdir(const char *path)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     return -EROFS;
 }
 
 static int dgp_rename(const char *from, const char *to, unsigned int flags)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     return -EROFS;
 }
 
 static int dgp_link(const char *from, const char *to)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     return -EROFS;
 }
 
 static int dgp_chmod(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     return -EROFS;
 }
 
 static int dgp_chown(const char *path, uid_t uid, gid_t gid, struct fuse_file_info *fi)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     return -EROFS;
 }
 
 static int dgp_truncate(const char *path, off_t size, struct fuse_file_info *fi)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     return -EROFS;
 }
 
 static int dgp_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     return -EROFS;
 }
 
 static int dgp_open(const char *path, struct fuse_file_info *fi)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     int res;
 
     return -ENOSYS;
@@ -311,25 +283,21 @@ static int dgp_open(const char *path, struct fuse_file_info *fi)
 
 static int dgp_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     return -ENOSYS;
 }
 
 static int dgp_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     return -EROFS;
 }
 
 static int dgp_statfs(const char *path, struct statvfs *stbuf)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     return -ENOSYS;
 }
 
 static int dgp_release(const char *path, struct fuse_file_info *fi)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     (void) path;
     close(fi->fh);
     return 0;
@@ -337,7 +305,6 @@ static int dgp_release(const char *path, struct fuse_file_info *fi)
 
 static int dgp_fsync(const char *path, int isdatasync, struct fuse_file_info *fi)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     (void) path;
     (void) isdatasync;
     (void) fi;
@@ -346,7 +313,6 @@ static int dgp_fsync(const char *path, int isdatasync, struct fuse_file_info *fi
 
 static off_t dgp_lseek(const char *path, off_t off, int whence, struct fuse_file_info *fi)
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     return -ENOSYS;
 }
 
@@ -377,20 +343,45 @@ static const struct fuse_operations dgp_oper = {
 
 int main(int argc, char *argv[])
 {
-    fprintf(stderr, "Entering %s()\n", __func__);
     enum { MAX_ARGS = 10 };
-    int i,new_argc;
+    int i, new_argc, token_len;
     char *new_argv[MAX_ARGS];
+    dgp_ctx *ctx;
+
+    ctx = malloc(sizeof(dgp_ctx));
+    if (ctx == NULL) {
+        perror("malloc()");
+        return -errno;
+    }
+    ctx->dgp_root = NULL;
+    ctx->root_loaded = 0;
+    ctx->authrization_token = NULL;
 
     umask(0);
-            /* Process the "--plus" option apart */
     for (i=0, new_argc=0; (i<argc) && (new_argc<MAX_ARGS); i++) {
-        if (!strcmp(argv[i], "--plus")) {
-            fill_dir_plus = FUSE_FILL_DIR_PLUS;
+        if (!strcmp(argv[i], "--auth")) {
+            if (i == argc) {
+                fputs("Authorization token needed\n", stderr);
+                return -1;
+            }
+            token_len = strlen(argv[i+1]);
+            ctx->authrization_token = malloc(token_len * sizeof(char));
+            if (ctx->authrization_token == NULL) {
+                perror("malloc()");
+                return -errno;
+            }
+            strcpy(ctx->authrization_token, argv[i+1]);
+            i++;
         } else {
             new_argv[new_argc++] = argv[i];
         }
     }
-    return fuse_main(new_argc, new_argv, &dgp_oper, NULL);
+
+    if (ctx->authrization_token == NULL) {
+        fputs("Authorization token needed\n", stderr);
+        return -1;
+    }
+
+    return fuse_main(new_argc, new_argv, &dgp_oper, ctx);
 }
 
