@@ -2,33 +2,8 @@
 #include <json-c/json.h>
 #include "digiposte_api.h"
 
-static char *response;
-static size_t response_allocated_size;
-static size_t response_actual_size;
 static CURL *curl_handle;
 static char *authorization_token;
-
-static size_t write_callback(char *ptr, size_t size, size_t nmemb, void *userdata)
-{
-    size_t realsize;
-    char *tmp;
-
-    realsize = size * nmemb;
-    if (realsize > response_allocated_size - response_actual_size) {
-        tmp = realloc(response, response_actual_size + realsize);
-        if (tmp == NULL) {
-            perror("realloc()");
-            return 0;
-        }
-        response = tmp;
-        response_allocated_size = response_actual_size + realsize;
-    }
-
-    memcpy(response + response_actual_size, ptr, realsize);
-    response_actual_size += realsize;
-
-    return realsize;
-}
 
 int init_api(const char *authorization)
 {
@@ -47,23 +22,12 @@ int init_api(const char *authorization)
         return -1;
     }
 
-    response = malloc(BUF_SIZE * sizeof(char));
-    if (response == NULL) {
-        perror("malloc()");
-        curl_easy_cleanup(curl_handle);
-        curl_global_cleanup();
-        return -1;
-    }
-    response_allocated_size = BUF_SIZE;
-    response_actual_size = 0;
-
     len = strlen(authorization);
     authorization_token = malloc((len+23) * sizeof(char));
     if (authorization_token == NULL) {
         perror("malloc()");
         curl_easy_cleanup(curl_handle);
         curl_global_cleanup();
-        free(response);
         return -1;
     }
     memcpy(authorization_token, "Authorization: Bearer ", 22);
@@ -77,17 +41,42 @@ void free_api()
 {
     curl_easy_cleanup(curl_handle);
     curl_global_cleanup();
-    free(response);
     free(authorization_token);
 }
 
-static int perform_get(const char *url)
+static size_t write_callback(char *ptr, size_t size, size_t nmemb, void *userdata)
+{
+    size_t realsize;
+    char *tmp;
+    resp_stuct *rs = (resp_stuct*)userdata;
+
+    realsize = size * nmemb;
+    if (realsize > rs->response_allocated_size - rs->response_actual_size) {
+        if (rs->fixed_size) {
+            fputs("write_callback(): cannot realloc memory mapping (response larger than file size)\n", stderr);
+            return 0;
+        }
+        tmp = realloc(rs->ptr, rs->response_actual_size + realsize);
+        if (tmp == NULL) {
+            perror("realloc()");
+            return 0;
+        }
+        rs->ptr = tmp;
+        rs->response_allocated_size = rs->response_actual_size + realsize;
+    }
+
+    memcpy(rs->ptr + rs->response_actual_size, ptr, realsize);
+    rs->response_actual_size += realsize;
+
+    return realsize;
+}
+
+static resp_stuct* prepare_request(const char *url, const char *data, const int data_len, resp_stuct *rs)
 {
     CURLcode code;
     struct curl_slist *slist = NULL;
 
     curl_easy_reset(curl_handle);
-    response_actual_size = 0;
 
     code = curl_easy_setopt(curl_handle, CURLOPT_URL, url);
     if(code != CURLE_OK) {
@@ -101,7 +90,7 @@ static int perform_get(const char *url)
         return -1;
     }
 
-    code = curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, NULL);
+    code = curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, rs);
     if(code != CURLE_OK) {
         fprintf(stderr, "curl_easy_setopt(): %s\n", curl_easy_strerror(code));
         return -1;
@@ -109,6 +98,21 @@ static int perform_get(const char *url)
 
     slist = curl_slist_append(slist, "Accept: application/json");
     slist = curl_slist_append(slist, authorization_token);
+    if (data != NULL) {
+        slist = curl_slist_append(slist, "Content-Type: application/json");
+        
+        code = curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDS, data);
+        if(code != CURLE_OK) {
+            fprintf(stderr, "curl_easy_setopt(): %s\n", curl_easy_strerror(code));
+            return -1;
+        }
+
+        code = curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDSIZE, data_len);
+        if(code != CURLE_OK) {
+            fprintf(stderr, "curl_easy_setopt(): %s\n", curl_easy_strerror(code));
+            return -1;
+        }
+    }
  
     code = curl_easy_setopt(curl_handle, CURLOPT_HTTPHEADER, slist);
     if(code != CURLE_OK) {
@@ -116,79 +120,6 @@ static int perform_get(const char *url)
         return -1;
     }
 
-    code = curl_easy_perform(curl_handle);
-    if(code != CURLE_OK) {
-        fprintf(stderr, "curl_easy_perform(): %s\n", curl_easy_strerror(code));
-        return -1;
-    }
-
-    return 0;
-}
-
-static int perform_post(const char *url, const char *data, const int len)
-{
-    CURLcode code;
-    struct curl_slist *slist = NULL;
-
-    curl_easy_reset(curl_handle);
-    response_actual_size = 0;
-
-    code = curl_easy_setopt(curl_handle, CURLOPT_URL, url);
-    if(code != CURLE_OK) {
-        fprintf(stderr, "curl_easy_setopt(): %s\n", curl_easy_strerror(code));
-        return -1;
-    }
-
-    code = curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDS, data);
-    if(code != CURLE_OK) {
-        fprintf(stderr, "curl_easy_setopt(): %s\n", curl_easy_strerror(code));
-        return -1;
-    }
-
-    code = curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDSIZE, len);
-    if(code != CURLE_OK) {
-        fprintf(stderr, "curl_easy_setopt(): %s\n", curl_easy_strerror(code));
-        return -1;
-    }
-
-    code = curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, write_callback);
-    if(code != CURLE_OK) {
-        fprintf(stderr, "curl_easy_setopt(): %s\n", curl_easy_strerror(code));
-        return -1;
-    }
-
-    code = curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, NULL);
-    if(code != CURLE_OK) {
-        fprintf(stderr, "curl_easy_setopt(): %s\n", curl_easy_strerror(code));
-        return -1;
-    }
-
-    slist = curl_slist_append(slist, "Content-Type: application/json");
-    slist = curl_slist_append(slist, "Accept: application/json");
-    slist = curl_slist_append(slist, authorization_token);
- 
-    code = curl_easy_setopt(curl_handle, CURLOPT_HTTPHEADER, slist);
-    if(code != CURLE_OK) {
-        fprintf(stderr, "curl_easy_setopt(): %s\n", curl_easy_strerror(code));
-        return -1;
-    }
-
-    code = curl_easy_perform(curl_handle);
-    if(code != CURLE_OK) {
-        fprintf(stderr, "curl_easy_perform(): %s\n", curl_easy_strerror(code));
-        return -1;
-    }
-
-    return 0;
-}
-
-static int perform_put(const char *url)
-{
-    return 0;
-}
-
-static int perform_delete(const char *url)
-{
     return 0;
 }
 
@@ -210,39 +141,91 @@ static void construct_folder_rec(c_folder *folder, json_object *root)
     }
 }
 
-
 c_folder* get_folders()
 {
+    CURLcode code;
     c_folder *folder;
     json_object *root;
+    resp_stuct *rs;
     int r, n, i;
 
-    r = perform_get("https://api.digiposte.fr/api/v3/folders");
-    if (r == -1) {
-        fputs("perform_get(): error\n", stderr);
+    rs = malloc(sizeof(resp_stuct));
+    if (rs == NULL) {
+        perror("malloc()");
         return NULL;
     }
-    root = json_tokener_parse(response);
+    rs->ptr = malloc(BUF_SIZE*sizeof(char));
+    if (rs->ptr == NULL) {
+        perror("malloc()");
+        free(rs);
+        return NULL;
+    }
+    rs->fixed_size = 0;
+    rs->response_actual_size = 0;
+    rs->response_allocated_size = BUF_SIZE;
+
+    r = prepare_request("https://api.digiposte.fr/api/v3/folders", NULL, 0, rs);
+    if (r == -1) {
+        fputs("prepare_request(): error\n", stderr);
+        free(rs->ptr);
+        free(rs);
+        return NULL;
+    }
+
+    code = curl_easy_perform(curl_handle);
+    if(code != CURLE_OK) {
+        fprintf(stderr, "curl_easy_perform(): %s\n", curl_easy_strerror(code));
+        free(rs->ptr);
+        free(rs);
+        return NULL;
+    }
+
+    root = json_tokener_parse(rs->ptr);
     if (root == NULL) {
         fputs("json_tokener_parse(): error\n", stderr);
+        free(rs->ptr);
+        free(rs);
         return NULL;
     }
 
     folder = add_folder(NULL, NULL, NULL);
-    if (folder == NULL) return NULL;
+    if (folder == NULL) {
+        free(rs->ptr);
+        free(rs);
+        return NULL;
+    }
 
     construct_folder_rec(folder, root);
 
     json_object_put(root);
+    free(rs->ptr);
+    free(rs);
 
     return folder;
 }
 
 int get_folder_content(c_folder *folder)
 {
+    CURLcode code;
     json_object *root, *j_file, *field_id, *field_name, *field_size, *tmp;
+    resp_stuct *rs;
     int r, i, n, post_data_len;
     char post_data[77];
+
+    rs = malloc(sizeof(resp_stuct));
+    if (rs == NULL) {
+        perror("malloc()");
+        return -1;
+    }
+    rs->ptr = malloc(BUF_SIZE*sizeof(char));
+    if (rs->ptr == NULL) {
+        perror("malloc()");
+        free(rs);
+        return -1;
+    }
+    rs->fixed_size = 0;
+    rs->response_actual_size = 0;
+    rs->response_allocated_size = BUF_SIZE;
 
     if (folder->name == NULL) {
         memcpy(post_data, "{\"locations\":[\"INBOX\",\"SAFE\"],\"folder_id\":\"\"}", 45);
@@ -255,15 +238,28 @@ int get_folder_content(c_folder *folder)
         post_data_len = 77;
     }
 
-    r = perform_post("https://api.digiposte.fr/api/v3/documents/search?max_results=1000&sort=TITLE", post_data, post_data_len);
+    r = prepare_request("https://api.digiposte.fr/api/v3/documents/search?max_results=1000&sort=TITLE", post_data, post_data_len, rs);
     if (r == -1) {
-        fputs("perform_post(): error\n", stderr);
-        return NULL;
+        fputs("prepare_request(): error\n", stderr);
+        free(rs->ptr);
+        free(rs);
+        return -1;
     }
-    root = json_tokener_parse(response);
+
+    code = curl_easy_perform(curl_handle);
+    if(code != CURLE_OK) {
+        fprintf(stderr, "curl_easy_perform(): %s\n", curl_easy_strerror(code));
+        free(rs->ptr);
+        free(rs);
+        return -1;
+    }
+
+    root = json_tokener_parse(rs->ptr);
     if (root == NULL) {
         fputs("json_tokener_parse(): error\n", stderr);
-        return NULL;
+        free(rs->ptr);
+        free(rs);
+        return -1;
     }
 
     j_file = json_object_object_get(root, "documents");
@@ -279,13 +275,85 @@ int get_folder_content(c_folder *folder)
     folder->files_loaded = 1;
 
     json_object_put(root);
+    free(rs->ptr);
+    free(rs);
 
     return 0;
 }
 
 int get_file(c_file *file, const char *dest_path)
 {
-    return -1;
+    CURLcode code;
+    resp_stuct *rs;
+    int fd, r;
+    char url[82];
+
+    rs = malloc(sizeof(resp_stuct));
+    if (rs == NULL) {
+        perror("malloc()");
+        return -1;
+    }
+    rs->ptr = NULL;
+    rs->fixed_size = 1;
+    rs->response_actual_size = 0;
+    rs->response_allocated_size = file->size;
+
+    fd = open(dest_path, O_RDWR|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP);
+    if (fd == -1) {
+        perror("open()");
+        free(rs);
+        return -1;
+    }
+
+    if (lseek(fd, file->size-1, SEEK_SET) == -1) {
+        perror("lseek()");
+        close(fd);
+        free(rs);
+        return -1;
+    }
+
+    if (write(fd, "", 1) != 1) {
+        perror("write()");
+        close(fd);
+        free(rs);
+        return -1;
+    }
+
+    rs->ptr = mmap(NULL, file->size, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+    if (rs->ptr == MAP_FAILED) {
+        perror("mmap()");
+        close(fd);
+        free(rs);
+        return -1;
+    }
+
+    memcpy(url, "https://api.digiposte.fr/api/v3/document/", 41);
+    memcpy(url+41, file->id, 32);
+    memcpy(url+73, "/content", 9);
+
+    r = prepare_request(url, NULL, 0, rs);
+    if (r == -1) {
+        fputs("prepare_request(): error\n", stderr);
+        munmap(rs->ptr, file->size);
+        close(fd);
+        free(rs);
+        return -1;
+    }
+
+    code = curl_easy_perform(curl_handle);
+    if(code != CURLE_OK) {
+        fprintf(stderr, "curl_easy_perform(): %s\n", curl_easy_strerror(code));
+        munmap(rs->ptr, file->size);
+        close(fd);
+        free(rs);
+        return -1;
+    }
+
+    munmap(rs->ptr, file->size);
+    close(fd);
+    free(rs);
+
+    return 0;
 }
 
 //int put_file(char **id, const char *src_path);

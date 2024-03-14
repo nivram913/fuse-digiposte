@@ -1,10 +1,22 @@
 #include <errno.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <unistd.h>
 #include "data_structures.h"
 
 #ifndef DGP_API_H
 #define DGP_API_H
 
 #define BUF_SIZE 4096
+
+typedef struct resp_stuct {
+    char *ptr;
+    char fixed_size;
+    size_t response_allocated_size;
+    size_t response_actual_size;
+} resp_stuct;
 
 /*
 Initialize API communication

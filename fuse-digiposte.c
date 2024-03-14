@@ -7,7 +7,26 @@ static int folder_cache_fault(c_folder *folder)
 
 static int file_cache_fault(c_file *file)
 {
-    return -1;
+    char dest_path[PATH_MAX];
+    int path_len;
+
+    memcpy(dest_path, CACHE_PATH, sizeof(CACHE_PATH)-1);
+    memcpy(dest_path + sizeof(CACHE_PATH)-1, file->id, 32);
+    dest_path[sizeof(CACHE_PATH)+31] = '\0';
+    path_len = strlen(dest_path);
+
+    if (get_file(file, dest_path) == -1) return -1;
+
+    file->cache_path = malloc(path_len+1);
+    if (file->cache_path == NULL) {
+        perror("malloc()");
+        return -1;
+    }
+
+    strcpy(file->cache_path, dest_path);
+    file->cached = 1;
+
+    return 0;
 }
 
 /*
@@ -52,7 +71,7 @@ static c_folder* resolve_path(const char *path, int *index, const dgp_ctx *ctx)
                 return current_folder->folders[i];
             }
             else {
-                if (!current_folder->files_loaded) folder_cache_fault(current_folder);
+                if (!current_folder->files_loaded && folder_cache_fault(current_folder) == -1) return NULL;
                 i = find_file_name(current_folder, subpath);
                 if (i == -1) return NULL;
                 *index = i;
@@ -68,6 +87,7 @@ static c_folder* resolve_path(const char *path, int *index, const dgp_ctx *ctx)
 static void *dgp_init(struct fuse_conn_info *conn, struct fuse_config *cfg)
 {
     dgp_ctx *ctx;
+    struct stat st;
 
     cfg->use_ino = 0;
     cfg->direct_io = 1;
@@ -93,10 +113,17 @@ static void *dgp_init(struct fuse_conn_info *conn, struct fuse_config *cfg)
 
     ctx->root_loaded = 1;
 
+    if (stat(CACHE_PATH, &st) == -1) {
+        if (mkdir(CACHE_PATH, 0770) != 0) {
+            perror("mkdir()");
+            exit(-errno);
+        }
+    }
+
     return (void*)ctx;
 }
 
-static void *dgp_destroy(void* private_data)
+static void dgp_destroy(void* private_data)
 {
     dgp_ctx *ctx = (dgp_ctx*)private_data;
 
@@ -161,7 +188,6 @@ static int dgp_getattr(const char *path, struct stat *stbuf, struct fuse_file_in
         stbuf->st_ctim = now;
     }
 
-
     return 0;
 }
 
@@ -197,7 +223,7 @@ static int dgp_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_
             return 0;
     }
 
-    if (!folder->files_loaded) folder_cache_fault(folder);
+    if (!folder->files_loaded && folder_cache_fault(folder) == -1) return -EIO;
     for (index=0; index < folder->nb_files; index++) {
         memset(&st, 0, sizeof(st));
         st.st_ino = 0;
@@ -261,29 +287,48 @@ static int dgp_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 
 static int dgp_open(const char *path, struct fuse_file_info *fi)
 {
-    int res;
+    c_folder *folder;
+    c_file *file;
+    int index;
+    struct fuse_context *fctx = fuse_get_context();
+    dgp_ctx *ctx = (dgp_ctx*)fctx->private_data;
 
-    return -ENOSYS;
-
-    res = open(path, fi->flags);
-    if (res == -1)
-        return -errno;
-
-        /* Enable direct_io when open has flags O_DIRECT to enjoy the feature
-        parallel_direct_writes (i.e., to get a shared lock, not exclusive lock,
-        for writes to the same file). */
-    if (fi->flags & O_DIRECT) {
-        fi->direct_io = 1;
-        //fi->parallel_direct_writes = 1;
+    folder = resolve_path(path, &index, ctx);
+    if (folder == NULL) return -ENOENT;
+    if (index == -1) {
+        return -EISDIR;
     }
 
-    fi->fh = res;
+    file = folder->files[index];
+    if (!file->cached && file_cache_fault(file) == -1) return -EIO;
+    
+    if (fi->flags & O_APPEND || fi->flags & O_CREAT || fi->flags & O_TRUNC || fi->flags & O_RDWR || fi->flags & O_WRONLY) return -EROFS;
+
+    fi->fh = open(file->cache_path, O_RDONLY);
+    if (fi->fh == -1) {
+        perror("open()");
+        return -errno;
+    }
+
     return 0;
 }
 
 static int dgp_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
-    return -ENOSYS;
+    int r;
+
+    if (fi == NULL) {
+        r = dgp_open(path, fi);
+        if (r != 0) return r;
+    }
+
+    r = pread(fi->fh, buf, size, offset);
+    if (r == -1) {
+        perror("pread()");
+        return -errno;
+    }
+
+    return r;
 }
 
 static int dgp_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
