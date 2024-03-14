@@ -358,7 +358,20 @@ static int dgp_fsync(const char *path, int isdatasync, struct fuse_file_info *fi
 
 static off_t dgp_lseek(const char *path, off_t off, int whence, struct fuse_file_info *fi)
 {
-    return -ENOSYS;
+    int r;
+
+    if (fi == NULL) {
+        r = dgp_open(path, fi);
+        if (r != 0) return r;
+    }
+
+    r = lseek(fi->fh, off, whence);
+    if (r == -1) {
+        perror("lseek()");
+        return -errno;
+    }
+
+    return r;
 }
 
 static const struct fuse_operations dgp_oper = {
