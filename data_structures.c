@@ -1,6 +1,6 @@
 #include "data_structures.h"
 
-c_folder* add_folder(struct c_folder *parent, const char *id, const char *name)
+c_folder* add_folder(c_folder *parent, const char *id, const char *name)
 {
     c_folder *new, **folder_table;
     int name_len = 0;
@@ -54,7 +54,7 @@ c_folder* add_folder(struct c_folder *parent, const char *id, const char *name)
     return new;
 }
 
-c_file* add_file(struct c_folder *parent, const char *id, const char *name, const size_t size)
+c_file* add_file(c_folder *parent, const char *id, const char *name, const size_t size)
 {
     c_file *new, **file_table;
     int name_len = 0;
@@ -100,14 +100,14 @@ c_file* add_file(struct c_folder *parent, const char *id, const char *name, cons
     return new;
 }
 
-int remove_file(struct c_folder *parent, const int index)
+int remove_file(c_folder *parent, const int index)
 {
-    int i = index;
+    int i;
     c_file *ptr, **file_table;
 
     if (parent == NULL || index >= parent->nb_files || index < 0 || !parent->files_loaded) {
         fputs("remove_file(): parent is NULL or index is out of range\n", stderr);
-        return -EINVAL;
+        return -1;
     }
 
     ptr = parent->files[index];
@@ -115,16 +115,14 @@ int remove_file(struct c_folder *parent, const int index)
     free(ptr->name);
     free(ptr);
 
-    while (i < parent->nb_files) {
+    for (i=index; i < parent->nb_files-1; i++)
         parent->files[i] = parent->files[i+1];
-        i++;
-    }
 
     parent->nb_files--;
     file_table = realloc(parent->files, parent->nb_files*sizeof(c_file*));
-    if (file_table == NULL) {
+    if (file_table == NULL && parent->nb_files != 0) {
         perror("realloc()");
-        return -errno;
+        return -1;
     }
 
     if (parent->nb_files == 0) parent->files = NULL;
@@ -133,36 +131,35 @@ int remove_file(struct c_folder *parent, const int index)
     return 0;
 }
 
-int remove_folder(struct c_folder *parent, const int index)
+int remove_folder(c_folder *folder)
 {
-    c_folder *ptr, **folder_table;
-    int i = index;
+    c_folder *parent, **folder_table;
+    int index, i;
 
-    if (parent == NULL || index >= parent->nb_folders || index < 0) {
-        fputs("remove_folder(): parent is NULL or index is out of range\n", stderr);
-        return -EINVAL;
+    parent = folder->parent;
+
+    if (parent == NULL) {
+        fputs("remove_folder(): Cannot remove root\n", stderr);
+        return -1;
     }
 
-    ptr = parent->folders[index];
-
-    if (ptr->nb_files != 0 || ptr->nb_folders != 0) {
-        fputs("remove_folder(): folder object not empty\n", stderr);
-        return -ENOTEMPTY;
+    if (folder->nb_folders > 0 || folder->nb_files > 0) {
+        fputs("remove_folder(): Folder object is not empty\n", stderr);
+        return -1;
     }
 
-    free(ptr->name);
-    free(ptr);
+    index = find_folder_id(parent, folder->id);
 
-    while (i < parent->nb_folders) {
+    free(folder->name);
+
+    for (i=index; i < parent->nb_folders-1; i++)
         parent->folders[i] = parent->folders[i+1];
-        i++;
-    }
 
     parent->nb_folders--;
     folder_table = realloc(parent->folders, parent->nb_folders*sizeof(c_folder*));
-    if (folder_table == NULL) {
+    if (folder_table == NULL && parent->nb_folders != 0) {
         perror("realloc()");
-        return -errno;
+        return -1;
     }
 
     if (parent->nb_folders == 0) parent->folders = NULL;
@@ -171,14 +168,14 @@ int remove_folder(struct c_folder *parent, const int index)
     return 0;
 }
 
-int remove_folder_rec(struct c_folder *parent, const int index)
+int remove_folder_rec(c_folder *parent, const int index)
 {
     c_folder *ptr;
     int i;
 
     if (parent == NULL || index >= parent->nb_folders || index < 0) {
         fputs("remove_folder_rec(): parent is NULL or index is out of range\n", stderr);
-        return -EINVAL;
+        return -1;
     }
 
     ptr = parent->folders[index];
@@ -186,20 +183,20 @@ int remove_folder_rec(struct c_folder *parent, const int index)
     for (i=ptr->nb_files-1; i>=0; i--) remove_file(ptr, i);
     for (i=ptr->nb_folders-1; i>=0; i--) remove_folder_rec(ptr, i);
 
-    return remove_folder(parent, index);
+    return remove_folder(ptr);
 }
 
-void free_root(struct c_folder *root)
+void free_root(c_folder *root)
 {
     int i;
 
     if (root == NULL) {
         fputs("free_root(): root cannot be NULL\n", stderr);
-        return -EINVAL;
+        return;
     }
 
-    for (i=root->nb_files; i>=0; i--) remove_file(root, i);
-    for (i=root->nb_folders; i>=0; i--) remove_folder_rec(root, i);
+    for (i=root->nb_files-1; i>=0; i--) remove_file(root, i);
+    for (i=root->nb_folders-1; i>=0; i--) remove_folder_rec(root, i);
 
     free(root->name);
     free(root);

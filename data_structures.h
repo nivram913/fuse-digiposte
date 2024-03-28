@@ -35,7 +35,7 @@ If the parent, id and name are NULL, its the root folder
 Return a pointer to the new folder object
 Return NULL on error
 */
-c_folder* add_folder(struct c_folder *parent, const char *id, const char *name);
+c_folder* add_folder(c_folder *parent, const char *id, const char *name);
 
 /*
 Add a new file into its parent folder
@@ -43,22 +43,22 @@ The new file cache_path is set to NULL
 Return a pointer to the new file object
 Return NULL on error
 */
-c_file* add_file(struct c_folder *parent, const char *id, const char *name, const size_t size);
+c_file* add_file(c_folder *parent, const char *id, const char *name, const size_t size);
 
 /*
 Remove file from its parent folder
 Takes the index of the file in the files table of the parent
-Return errno error code on error, 0 otherwise
+Return -1 on error, 0 otherwise
 */
-int remove_file(struct c_folder *parent, const int index);
+int remove_file(c_folder *parent, const int index);
 
 /*
 Remove folder from its parent folder
 Takes the index of the folder in the folders table of the parent
 The folder should have no child files and no child folders
-Return errno error code on error, 0 otherwise
+Return -1 on error, 0 otherwise
 */
-int remove_folder(struct c_folder *parent, const int index);
+int remove_folder(c_folder *folder);
 
 /*
 Remove folder from its parent folder recursively
@@ -66,12 +66,12 @@ Takes the index of the folder in the folders table of the parent
 If folder has child files or child folders, they will be removed as well
 Return -1 on error, 0 otherwise
 */
-int remove_folder_rec(struct c_folder *parent, const int index);
+int remove_folder_rec(c_folder *parent, const int index);
 
 /*
 Free memory
 */
-void free_root(struct c_folder *root);
+void free_root(c_folder *root);
 
 /*
 Find a file by its name
