@@ -27,7 +27,7 @@ profile fuse-digiposte /path/to/fuse-digiposte {
   /dev/fuse rw,
   /usr/bin/fusermount3 PUx,
   
-  /home/nivram/gits/fuse-digiposte/fuse-digiposte mr,
+  /path/to/fuse-digiposte mr,
   
   /etc/ssl/openssl.cnf r,
 }
