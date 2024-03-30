@@ -177,7 +177,7 @@ static int dgp_getattr(const char *path, struct stat *stbuf, struct fuse_file_in
         stbuf->st_rdev = 0;
         stbuf->st_blocks = 0;
 
-        //Directory with r--r-----
+        //File with r--r-----
         stbuf->st_mode = (S_IFMT & S_IFREG) | S_IRUSR | S_IRGRP;
         stbuf->st_nlink = 1;
         stbuf->st_uid = fctx->uid;
@@ -237,52 +237,110 @@ static int dgp_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_
 
 static int dgp_mknod(const char *path, mode_t mode, dev_t rdev)
 {
-    return -EROFS;
+    if (!S_ISREG(mode)) return -EPERM;
+    //dgp_create(path, mode, NULL);
+    return -ENOSYS;
 }
 
 static int dgp_mkdir(const char *path, mode_t mode)
 {
-    return -EROFS;
+    c_folder *folder;
+    int i, j, index, path_len;
+    char *subpath, *name, id[32];
+    struct fuse_context *fctx = fuse_get_context();
+    dgp_ctx *ctx = (dgp_ctx*)fctx->private_data;
+
+    path_len = strlen(path);
+    subpath = malloc((path_len+1)*sizeof(char));
+    if (subpath == NULL) {
+        perror("malloc()");
+        return -errno;
+    }
+
+    i = path_len-1;
+    while (path[i] != '/') i--;
+    for (j=0; j<i; j++) subpath[j] = path[j];
+    subpath[j] = '\0';
+    
+    name = malloc((path_len-j+1)*sizeof(char));
+    if (name == NULL) {
+        perror("malloc()");
+        free(subpath);
+        return -errno;
+    }
+
+    memcpy(name, path+j, path_len-j+1);
+
+    folder = resolve_path(subpath, &index, ctx);
+    if (folder == NULL) {
+        free(name);
+        free(subpath);
+        return -ENOENT;
+    }
+    if (index != -1) {
+        free(name);
+        free(subpath);
+        return -ENOTDIR;
+    }
+
+    if (create_folder(name, folder->id, id) == -1) {
+        fputs("create_folder(): API error\n", stderr);
+        free(name);
+        free(subpath);
+        return -EIO;
+    }
+
+    if (add_folder(folder, id, name) == NULL) {
+        fputs("add_folder(): Error creating folder into c_folder struct\n", stderr);
+        free(name);
+        free(subpath);
+        return -EIO;
+    }
+
+    free(name);
+    free(subpath);
+
+    return 0;
 }
 
 static int dgp_unlink(const char *path)
 {
-    return -EROFS;
+    return -ENOSYS;
 }
 
 static int dgp_rmdir(const char *path)
 {
-    return -EROFS;
+    return -ENOSYS;
 }
 
 static int dgp_rename(const char *from, const char *to, unsigned int flags)
 {
-    return -EROFS;
+    return -ENOSYS;
 }
 
 static int dgp_link(const char *from, const char *to)
 {
-    return -EROFS;
+    return -ENOSYS;
 }
 
 static int dgp_chmod(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
-    return -EROFS;
+    return -ENOSYS;
 }
 
 static int dgp_chown(const char *path, uid_t uid, gid_t gid, struct fuse_file_info *fi)
 {
-    return -EROFS;
+    return -ENOSYS;
 }
 
 static int dgp_truncate(const char *path, off_t size, struct fuse_file_info *fi)
 {
-    return -EROFS;
+    return -ENOSYS;
 }
 
 static int dgp_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
-    return -EROFS;
+    return -ENOSYS;
 }
 
 static int dgp_open(const char *path, struct fuse_file_info *fi)
@@ -333,7 +391,7 @@ static int dgp_read(const char *path, char *buf, size_t size, off_t offset, stru
 
 static int dgp_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
-    return -EROFS;
+    return -ENOSYS;
 }
 
 static int dgp_statfs(const char *path, struct statvfs *stbuf)

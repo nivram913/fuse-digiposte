@@ -18,6 +18,14 @@ typedef struct resp_stuct {
     size_t response_actual_size;
 } resp_stuct;
 
+typedef enum {
+    REQ_GET,
+    REQ_POST,
+    REQ_PUT,
+    REQ_PUT_WITH_DATA,
+    REQ_DELETE
+} req_type;
+
 /*
 Initialize API communication
 Takes authorization bearer
@@ -50,13 +58,40 @@ Return 0 on success, -1 otherwise
 int get_file(c_file *file, const char *dest_path);
 
 /*
-FOLLOWING NOT IMPLEMENTED YET
+Create a folder named "name" into the folder of id parent_id
+Put the id of the newly created folder into new_id
+Return 0 on success, -1 otherwise
 */
+int create_folder(const char *name, const char *parent_id, char *new_id);
 
-//int put_file(char **id, const char *src_path);
-int create_folder(const char *name);
-int delete_item(const char *id);
-int rename_folder(const char *id, const char *new_name);
-int rename_file(const char *id, const char *new_name);
+/*
+Rename the object of id "id" with new_name
+If is_file is true, the object is a file, otherwise a folder
+Return 0 on success, -1 otherwise
+*/
+int rename_object(const char *id, const char *new_name, const char is_file);
+
+/*
+Delete the object of id "id"
+If is_file is true, the object is a file, otherwise a folder
+Return 0 on success, -1 otherwise
+*/
+int delete_object(const char *id, const char is_file);
+
+/*
+Move the object of id "id" to destination folder id "to_folder_id"
+If to_folder_id is NULL, move to root folder
+If is_file is true, the object is a file, otherwise a folder
+Return 0 on success, -1 otherwise
+*/
+int move_object(const char *id, const char *to_folder_id, const char is_file);
+
+/*
+Upload the file pointed by "file" to folder id "to_folder_id"
+If to_folder_id is NULL, upload to root folder
+Put the id of the newly created file into new_id
+Return 0 on success, -1 otherwise
+*/
+int upload_file(c_file *file, const char *to_folder_id, char *new_id);
 
 #endif
