@@ -29,6 +29,27 @@ static int file_cache_fault(c_file *file)
     return 0;
 }
 
+static void generate_new_id(char *id)
+{
+    static int counter = 0;
+    sprintf(id, "new-%028d", counter);
+    counter++;
+}
+
+static int get_subpath(const char *path, char *subpath, char *name)
+{
+    int i, j, k, path_len;
+
+    path_len = strlen(path);
+    i = path_len-1;
+    while (path[i] != '/') i--;
+    for (j=0; j<i; j++) subpath[j] = path[j];
+    subpath[j] = '\0';
+    for (k=i; k<=path_len; j++) name[k-i] = path[k];
+
+    return strlen(name);
+}
+
 /*
 If path point to a directory, return the directory and set index to -1
 If path point to a file, return the containing directory and set index to the index of the file in files table
@@ -159,8 +180,8 @@ static int dgp_getattr(const char *path, struct stat *stbuf, struct fuse_file_in
         stbuf->st_rdev = 0;
         stbuf->st_blocks = 0;
 
-        //Directory with r-xr-x---
-        stbuf->st_mode = (S_IFMT & S_IFDIR) | S_IRUSR | S_IXUSR | S_IRGRP | S_IXGRP;
+        //Directory with rwxrwx---
+        stbuf->st_mode = (S_IFMT & S_IFDIR) | S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IWGRP | S_IXGRP;
         stbuf->st_nlink = 2 + folder->nb_folders;
         stbuf->st_uid = fctx->uid;
         stbuf->st_gid = fctx->gid;
@@ -177,8 +198,8 @@ static int dgp_getattr(const char *path, struct stat *stbuf, struct fuse_file_in
         stbuf->st_rdev = 0;
         stbuf->st_blocks = 0;
 
-        //File with r--r-----
-        stbuf->st_mode = (S_IFMT & S_IFREG) | S_IRUSR | S_IRGRP;
+        //File with rw-rw----
+        stbuf->st_mode = (S_IFMT & S_IFREG) | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
         stbuf->st_nlink = 1;
         stbuf->st_uid = fctx->uid;
         stbuf->st_gid = fctx->gid;
@@ -196,7 +217,7 @@ static int dgp_access(const char *path, int mask)
     struct stat stbuf;
 
     if (dgp_getattr(path, &stbuf, NULL) == -ENOENT) return -ENOENT;
-    if (mask & W_OK) return -EROFS;
+    //if (mask & W_OK) return -EROFS;
     if (mask & X_OK && S_ISREG(stbuf.st_mode)) return -EACCES;
 
     return 0;
@@ -218,7 +239,7 @@ static int dgp_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_
     for (index=0; index < folder->nb_folders; index++) {
         memset(&st, 0, sizeof(st));
         st.st_ino = 0;
-        st.st_mode = (S_IFMT & S_IFDIR) | S_IRUSR | S_IXUSR | S_IRGRP | S_IXGRP;
+        st.st_mode = (S_IFMT & S_IFDIR) | S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IWGRP | S_IXGRP;
         if (filler(buf, folder->folders[index]->name, &st, 0, 0))
             return 0;
     }
@@ -227,7 +248,7 @@ static int dgp_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_
     for (index=0; index < folder->nb_files; index++) {
         memset(&st, 0, sizeof(st));
         st.st_ino = 0;
-        st.st_mode = (S_IFMT & S_IFREG) | S_IRUSR | S_IRGRP;
+        st.st_mode = (S_IFMT & S_IFREG) | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
         if (filler(buf, folder->files[index]->name, &st, 0, 0))
             break;
     }
@@ -245,7 +266,7 @@ static int dgp_mknod(const char *path, mode_t mode, dev_t rdev)
 static int dgp_mkdir(const char *path, mode_t mode)
 {
     c_folder *folder;
-    int i, j, index, path_len;
+    int index, path_len;
     char *subpath, *name, id[32];
     struct fuse_context *fctx = fuse_get_context();
     dgp_ctx *ctx = (dgp_ctx*)fctx->private_data;
@@ -256,20 +277,15 @@ static int dgp_mkdir(const char *path, mode_t mode)
         perror("malloc()");
         return -errno;
     }
-
-    i = path_len-1;
-    while (path[i] != '/') i--;
-    for (j=0; j<i; j++) subpath[j] = path[j];
-    subpath[j] = '\0';
     
-    name = malloc((path_len-j+1)*sizeof(char));
+    name = malloc((path_len+1)*sizeof(char));
     if (name == NULL) {
         perror("malloc()");
         free(subpath);
         return -errno;
     }
 
-    memcpy(name, path+j, path_len-j+1);
+    get_subpath(path, subpath, name);
 
     folder = resolve_path(subpath, &index, ctx);
     if (folder == NULL) {
@@ -305,12 +321,50 @@ static int dgp_mkdir(const char *path, mode_t mode)
 
 static int dgp_unlink(const char *path)
 {
-    return -ENOSYS;
+    c_folder *folder;
+    c_file *file;
+    int index;
+    struct fuse_context *fctx = fuse_get_context();
+    dgp_ctx *ctx = (dgp_ctx*)fctx->private_data;
+
+    folder = resolve_path(path, &index, ctx);
+    if (folder == NULL) return -ENOENT;
+    if (index == -1) return -EISDIR;
+
+    file = folder->files[index];
+
+    if (file->id[0] != 'n' && delete_object(file->id, 1) == -1) return -EIO;
+
+    if (file->cached && unlink(file->cache_path) == 0) file->cached = 0;
+
+    if (remove_file(folder, index) == -1) {
+        fputs("dgp_unlink(): Error removing file from struct\n", stderr);
+        return -EIO;
+    }
+
+    return 0;
 }
 
 static int dgp_rmdir(const char *path)
 {
-    return -ENOSYS;
+    c_folder *folder;
+    int index;
+    struct fuse_context *fctx = fuse_get_context();
+    dgp_ctx *ctx = (dgp_ctx*)fctx->private_data;
+
+    folder = resolve_path(path, &index, ctx);
+    if (folder == NULL) return -ENOENT;
+    if (index != -1) return -ENOTDIR;
+    if (folder->nb_files + folder->nb_folders > 0) return -ENOTEMPTY;
+
+    if (delete_object(folder->id, 0) == -1) return -EIO;
+
+    if (remove_folder(folder) == -1) {
+        fputs("dgp_rmdir(): Error removing folder from struct\n", stderr);
+        return -EIO;
+    }
+
+    return 0;
 }
 
 static int dgp_rename(const char *from, const char *to, unsigned int flags)
@@ -335,12 +389,109 @@ static int dgp_chown(const char *path, uid_t uid, gid_t gid, struct fuse_file_in
 
 static int dgp_truncate(const char *path, off_t size, struct fuse_file_info *fi)
 {
-    return -ENOSYS;
+    int index, r;
+    struct fuse_context *fctx = fuse_get_context();
+    dgp_ctx *ctx = (dgp_ctx*)fctx->private_data;
+    c_folder *folder;
+    c_file *file;
+
+    folder = resolve_path(path, &index, ctx);
+    if (folder == NULL) return -ENOENT;
+    if (index == -1) return -EISDIR;
+    file = folder->files[index];
+
+    if (!file->cached && file_cache_fault(file) == -1) return -EIO;
+
+	if (fi != NULL) {
+		if (ftruncate(fi->fh, size) == -1) {
+            perror("ftruncate()");
+            return -errno;
+        }
+    }
+	else {
+		if (truncate(file->cache_path, size) == -1) {
+            perror("truncate()");
+            return -errno;
+        }
+    }
+
+    file->size = size;
+    file->dirty = 1;
+
+	return 0;
 }
 
 static int dgp_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
-    return -ENOSYS;
+    c_folder *folder;
+    c_file *file;
+    int index, path_len, name_len;
+    char *subpath, *name, id[32];
+    struct fuse_context *fctx = fuse_get_context();
+    dgp_ctx *ctx = (dgp_ctx*)fctx->private_data;
+
+    folder = resolve_path(path, &index, ctx);
+    if (folder != NULL) return -EEXIST;
+
+    path_len = strlen(path);
+    subpath = malloc(path_len+1);
+    if (subpath == NULL) {
+        perror("malloc()");
+        return -errno;
+    }
+    name = malloc(path_len+1);
+    if (name == NULL) {
+        perror("malloc()");
+        free(subpath);
+        return -errno;
+    }
+
+    name_len = get_subpath(path, subpath, name);
+
+    folder = resolve_path(subpath, &index, ctx);
+    if (folder == NULL) return -ENOENT;
+    if (index != -1) {
+        free(subpath);
+        free(name);
+        return -ENOTDIR;
+    }
+
+    //TODO: check mode
+
+    generate_new_id(id);
+
+    file = add_file(folder, id, name, 0);
+    if (file == NULL) {
+        fputs("dgp_create(): Error adding file to struct\n", stderr);
+        free(subpath);
+        free(name);
+        return -EIO;
+    }
+
+    file->cache_path = malloc(sizeof(CACHE_PATH)+32);
+    if (file->cache_path == NULL) {
+        perror("malloc()");
+        free(subpath);
+        free(name);
+        return -errno;
+    }
+    memcpy(file->cache_path, CACHE_PATH, sizeof(CACHE_PATH)-1);
+    memcpy(file->cache_path+sizeof(CACHE_PATH)-1, id, 32);
+    file->cache_path[sizeof(CACHE_PATH)+31] = '\0';
+
+    fi->fh = open(file->cache_path, fi->flags, mode);
+    if (fi->fh == -1) {
+        perror("open()");
+        return -errno;
+    }
+
+    file->dirty = 1;
+    file->cached = 1;
+
+    free(subpath);
+    free(name);
+
+    return 0;
 }
 
 static int dgp_open(const char *path, struct fuse_file_info *fi)
@@ -351,18 +502,20 @@ static int dgp_open(const char *path, struct fuse_file_info *fi)
     struct fuse_context *fctx = fuse_get_context();
     dgp_ctx *ctx = (dgp_ctx*)fctx->private_data;
 
+    //Handled by dgp_create() and dgp_truncate() ?
+    if (fi->flags & O_CREAT || fi->flags & O_TRUNC) return -EINVAL;
+
     folder = resolve_path(path, &index, ctx);
     if (folder == NULL) return -ENOENT;
-    if (index == -1) {
-        return -EISDIR;
-    }
+    if (index == -1) return -EISDIR;
 
     file = folder->files[index];
     if (!file->cached && file_cache_fault(file) == -1) return -EIO;
     
-    if (fi->flags & O_APPEND || fi->flags & O_CREAT || fi->flags & O_TRUNC || fi->flags & O_RDWR || fi->flags & O_WRONLY) return -EROFS;
+    if (fi->flags & O_APPEND || fi->flags & O_CREAT || fi->flags & O_TRUNC || fi->flags & O_RDWR || fi->flags & O_WRONLY)
+        file->dirty = 1;
 
-    fi->fh = open(file->cache_path, O_RDONLY);
+    fi->fh = open(file->cache_path, fi->flags);
     if (fi->fh == -1) {
         perror("open()");
         return -errno;
@@ -391,7 +544,20 @@ static int dgp_read(const char *path, char *buf, size_t size, off_t offset, stru
 
 static int dgp_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
-    return -ENOSYS;
+    int r;
+
+    if (fi == NULL) {
+        r = dgp_open(path, fi);
+        if (r != 0) return r;
+    }
+
+    r = pwrite(fi->fh, buf, size, offset);
+    if (r == -1) {
+        perror("pwrite()");
+        return -errno;
+    }
+
+    return r;
 }
 
 static int dgp_statfs(const char *path, struct statvfs *stbuf)
@@ -408,9 +574,49 @@ static int dgp_release(const char *path, struct fuse_file_info *fi)
 
 static int dgp_fsync(const char *path, int isdatasync, struct fuse_file_info *fi)
 {
-    (void) path;
-    (void) isdatasync;
-    (void) fi;
+    c_folder *folder;
+    c_file *file;
+    struct stat st;
+    int index;
+    char new_id[32], new_cache_path[sizeof(CACHE_PATH)+32];
+    struct fuse_context *fctx = fuse_get_context();
+    dgp_ctx *ctx = (dgp_ctx*)fctx->private_data;
+
+    folder = resolve_path(path, &index, ctx);
+    if (folder == NULL) return -ENOENT;
+    if (index == -1) return -EISDIR;
+
+    file = folder->files[index];
+
+    if (!file->cached || !file->dirty) return 0;
+
+    if (file->id[0] != 'n' && delete_object(file->id, 1) == -1) {
+        fputs("dgp_fsync(): Error deleting remote file\n", stderr);
+        return -EIO;
+    }
+
+    stat(file->cache_path, &st);
+    file->size = st.st_size;
+
+    if (upload_file(file, folder->id, new_id) == -1) {
+        fputs("dgp_fsync(): Error uploading file\n", stderr);
+        remove_file(folder, index);
+        return -EIO;
+    }
+
+    memcpy(file->id, new_id, 32);
+    file->dirty = 0;
+    memcpy(new_cache_path, file->cache_path, sizeof(CACHE_PATH)-1);
+    memcpy(new_cache_path+sizeof(CACHE_PATH)-1, new_id, 32);
+
+    if (rename(file->cache_path, new_cache_path) != 0) {
+        perror("rename()");
+        file->cached = 0;
+        return -errno;
+    }
+
+    memcpy(file->cache_path, new_cache_path, sizeof(CACHE_PATH)+32);
+
     return 0;
 }
 

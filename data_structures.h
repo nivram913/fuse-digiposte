@@ -54,7 +54,6 @@ int remove_file(c_folder *parent, const int index);
 
 /*
 Remove folder from its parent folder
-Takes the index of the folder in the folders table of the parent
 The folder should have no child files and no child folders
 Return -1 on error, 0 otherwise
 */
