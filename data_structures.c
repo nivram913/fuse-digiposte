@@ -302,7 +302,15 @@ int move_folder(c_folder *folder, c_folder *to)
     new_folder->nb_folders = folder->nb_folders;
 
     new_folder->files = malloc(new_folder->nb_files * sizeof(c_file*));
+    if (new_folder->files == NULL) {
+        perror("malloc()");
+        return -1;
+    }
     new_folder->folders = malloc(new_folder->nb_folders * sizeof(c_folder*));
+    if (new_folder->folders == NULL) {
+        perror("malloc()");
+        return -1;
+    }
 
     memcpy(new_folder->files, folder->files, new_folder->nb_files*sizeof(c_file*));
     for (i=0; i<new_folder->nb_folders; i++) {
