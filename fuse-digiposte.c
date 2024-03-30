@@ -367,9 +367,143 @@ static int dgp_rmdir(const char *path)
     return 0;
 }
 
+static int dgp_rename_simple(const char *from, const char *to, const char *to_name)
+{
+    c_folder *from_folder, *to_folder;
+    c_file *from_file;
+    int from_index, to_index, new_name_len;
+    struct fuse_context *fctx = fuse_get_context();
+    dgp_ctx *ctx = (dgp_ctx*)fctx->private_data;
+
+    from_folder = resolve_path(from, &from_index, ctx);
+    to_folder = resolve_path(to, &to_index, ctx);
+    if (from_folder == NULL) return -ENOENT;
+    if (to_folder != NULL) return -EEXIST;
+
+    if (from_index == -1) {
+        if (rename_object(from_folder->id, to_name, 0) == -1) return -EIO;
+        free(from_folder->name);
+        from_folder->name = malloc(strlen(to_name)+1);
+        if (from_folder->name == NULL) {
+            perror("malloc()");
+            fputs("dgp_rename_simple(): Unrecoverable error\n", stderr);
+            return -errno;
+        }
+        memcpy(from_folder->name, to_name, new_name_len+1);
+    }
+    else {
+        from_file = from_folder->files[from_index];
+        if (rename_object(from_file->id, to_name, 1) == -1) return -EIO;
+        free(from_file->name);
+        from_file->name = malloc(strlen(to_name)+1);
+        if (from_file->name == NULL) {
+            perror("malloc()");
+            fputs("dgp_rename_simple(): Unrecoverable error\n", stderr);
+            return -errno;
+        }
+        memcpy(from_file->name, to_name, new_name_len+1);
+    }
+
+    return 0;
+}
+
+static int dgp_rename_move(const char *from, const char *to, const char *to_subpath, const char *to_name)
+{
+    c_folder *from_folder, *to_folder;
+    c_file *from_file;
+    int from_index, to_index, new_name_len;
+    struct fuse_context *fctx = fuse_get_context();
+    dgp_ctx *ctx = (dgp_ctx*)fctx->private_data;
+
+    from_folder = resolve_path(from, &from_index, ctx);
+    to_folder = resolve_path(to, &to_index, ctx);
+    if (from_folder == NULL) return -ENOENT;
+    if (to_folder != NULL) return -EEXIST;
+
+    if (to_subpath[0] == '\0') to_folder = ctx->dgp_root;
+    else {
+        to_folder = resolve_path(to_subpath, &to_index, ctx);
+        if (to_folder == NULL) return -ENOENT;
+        if (to_index != -1) return -ENOTDIR;
+    }
+
+    if (from_index == -1) {
+        if (move_object(from_folder->id, to_folder->id, 0) == -1) return -EIO;
+
+        if (move_folder(from_folder, to_folder) == -1) return -EIO;
+
+        free(from_folder->name);
+        from_folder->name = malloc(strlen(to_name)+1);
+        if (from_folder->name == NULL) {
+            perror("malloc()");
+            fputs("dgp_rename_move(): Unrecoverable error\n", stderr);
+            return -errno;
+        }
+        memcpy(from_folder->name, to_name, new_name_len+1);
+    }
+    else {
+        from_file = from_folder->files[from_index];
+        if (move_object(from_file->id, to_folder->id, 1) == -1) return -EIO;
+
+        if (move_file(from_folder, to_folder, from_index) == -1) return -EIO;
+
+        free(from_file->name);
+        from_file->name = malloc(strlen(to_name)+1);
+        if (from_file->name == NULL) {
+            perror("malloc()");
+            fputs("dgp_rename_move(): Unrecoverable error\n", stderr);
+            return -errno;
+        }
+        memcpy(from_file->name, to_name, new_name_len+1);
+    }
+
+    return 0;
+}
+
 static int dgp_rename(const char *from, const char *to, unsigned int flags)
 {
-    return -ENOSYS;
+    int r, from_path_len, from_name_len, to_path_len, to_name_len;
+    char *from_subpath, *from_name, *to_subpath, *to_name;
+
+    from_path_len = strlen(from);
+    to_path_len = strlen(to);
+
+    from_subpath = malloc(from_path_len+1);
+    if (from_subpath == NULL) {
+        perror("malloc()");
+        return -errno;
+    }
+    from_name = malloc(from_path_len+1);
+    if (from_name == NULL) {
+        perror("malloc()");
+        free(from_subpath);
+        return -errno;
+    }
+    to_subpath = malloc(to_path_len+1);
+    if (to_subpath == NULL) {
+        perror("malloc()");
+        free(from_subpath);
+        free(from_name);
+        return -errno;
+    }
+    to_name = malloc(to_path_len+1);
+    if (to_name == NULL) {
+        perror("malloc()");
+        free(from_subpath);
+        free(from_name);
+        free(to_subpath);
+        return -errno;
+    }
+
+    if (strcmp(from_subpath, to_subpath) == 0) r = dgp_rename_simple(from, to, to_name);
+    else r = dgp_rename_move(from, to, to_subpath, to_name);
+
+    free(from_subpath);
+    free(from_name);
+    free(to_subpath);
+    free(to_name);
+
+    return r;
 }
 
 static int dgp_link(const char *from, const char *to)

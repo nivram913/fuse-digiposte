@@ -257,3 +257,13 @@ int find_folder_id(const c_folder *base, const char *id)
 
     return -1;
 }
+
+int move_file(c_folder *from, c_folder *to, const int index)
+{
+    return -1;
+}
+
+int move_folder(c_folder *folder, c_folder *to)
+{
+    return -1;
+}
