@@ -21,10 +21,16 @@ typedef struct resp_stuct {
 typedef enum {
     REQ_GET,
     REQ_POST,
+    REQ_POST_MULTIPART,
     REQ_PUT,
     REQ_PUT_WITH_DATA,
     REQ_DELETE
 } req_type;
+
+typedef struct {
+    char *folder_parent_id;
+    c_file *file;
+} post_multipart_data;
 
 /*
 Initialize API communication
@@ -46,7 +52,7 @@ c_folder* get_folders();
 
 /*
 Get folder content (files)
-Takes a pointer to the folder object
+Takes a pointer to the folder object and update it
 Return 0 on success, -1 otherwise
 */
 int get_folder_content(c_folder *folder);
@@ -55,7 +61,7 @@ int get_folder_content(c_folder *folder);
 Download the file at index into folder object to dest_path
 Return 0 on success, -1 otherwise
 */
-int get_file(c_file *file, const char *dest_path);
+int get_file(const c_file *file, const char *dest_path);
 
 /*
 Create a folder named "name" into the folder of id parent_id
@@ -92,6 +98,6 @@ If to_folder_id is NULL, upload to root folder
 Put the id of the newly created file into new_id
 Return 0 on success, -1 otherwise
 */
-int upload_file(c_file *file, const char *to_folder_id, char *new_id);
+int upload_file(const c_file *file, const char *to_folder_id, char *new_id);
 
 #endif

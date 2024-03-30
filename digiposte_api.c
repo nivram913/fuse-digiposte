@@ -71,10 +71,14 @@ static size_t write_callback(char *ptr, size_t size, size_t nmemb, void *userdat
     return realsize;
 }
 
-static resp_stuct* prepare_request(const req_type req_type, const char *url, const char *data, const int data_len, resp_stuct *rs)
+static resp_stuct* prepare_request(const req_type req_type, const char *url, const void *data, const int data_len, resp_stuct *rs)
 {
     CURLcode code;
     struct curl_slist *slist = NULL;
+    post_multipart_data *post_mp_data;
+    curl_mime *form;
+    curl_mimepart *field;
+    char size[10];
 
     curl_easy_reset(curl_handle);
 
@@ -98,26 +102,63 @@ static resp_stuct* prepare_request(const req_type req_type, const char *url, con
 
     slist = curl_slist_append(slist, "Accept: application/json");
     slist = curl_slist_append(slist, authorization_token);
-    if (req_type == REQ_POST || req_type == REQ_PUT_WITH_DATA) {
-        slist = curl_slist_append(slist, "Content-Type: application/json");
-        
-        code = curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDS, data);
-        if(code != CURLE_OK) {
-            fprintf(stderr, "curl_easy_setopt(): %s\n", curl_easy_strerror(code));
-            return -1;
+    if (req_type == REQ_POST_MULTIPART) {
+        post_mp_data = (post_multipart_data*)data;
+
+        form = curl_mime_init(curl_handle);
+        if (form == NULL) return -1;
+
+        field = curl_mime_addpart(form);
+        curl_mime_name(field, "archive");
+        curl_mime_filedata(field, post_mp_data->file->cache_path);
+
+        field = curl_mime_addpart(form);
+        curl_mime_name(field, "health_document");
+        curl_mime_data(field, "false", CURL_ZERO_TERMINATED);
+
+        field = curl_mime_addpart(form);
+        curl_mime_name(field, "title");
+        curl_mime_data(field, post_mp_data->file->name, CURL_ZERO_TERMINATED);
+
+        snprintf(size, 10, "%d", post_mp_data->file->size);
+        field = curl_mime_addpart(form);
+        curl_mime_name(field, "archive_size");
+        curl_mime_data(field, size, CURL_ZERO_TERMINATED);
+
+        if (post_mp_data->folder_parent_id != NULL) {
+            field = curl_mime_addpart(form);
+            curl_mime_name(field, "folder_id");
+            curl_mime_data(field, post_mp_data->folder_parent_id, 32);
         }
 
-        code = curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDSIZE, data_len);
+        code = curl_easy_setopt(curl_handle, CURLOPT_MIMEPOST, form);
         if(code != CURLE_OK) {
             fprintf(stderr, "curl_easy_setopt(): %s\n", curl_easy_strerror(code));
             return -1;
         }
     }
-    if (req_type == REQ_PUT || req_type == REQ_PUT_WITH_DATA) {
-        code = curl_easy_setopt(curl_handle, CURLOPT_CUSTOMREQUEST, "PUT");
-        if(code != CURLE_OK) {
-            fprintf(stderr, "curl_easy_setopt(): %s\n", curl_easy_strerror(code));
-            return -1;
+    else {
+        if (req_type == REQ_POST || req_type == REQ_PUT_WITH_DATA) {
+            slist = curl_slist_append(slist, "Content-Type: application/json");
+            
+            code = curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDS, (char*)data);
+            if(code != CURLE_OK) {
+                fprintf(stderr, "curl_easy_setopt(): %s\n", curl_easy_strerror(code));
+                return -1;
+            }
+
+            code = curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDSIZE, data_len);
+            if(code != CURLE_OK) {
+                fprintf(stderr, "curl_easy_setopt(): %s\n", curl_easy_strerror(code));
+                return -1;
+            }
+        }
+        if (req_type == REQ_PUT || req_type == REQ_PUT_WITH_DATA) {
+            code = curl_easy_setopt(curl_handle, CURLOPT_CUSTOMREQUEST, "PUT");
+            if(code != CURLE_OK) {
+                fprintf(stderr, "curl_easy_setopt(): %s\n", curl_easy_strerror(code));
+                return -1;
+            }
         }
     }
  
@@ -255,7 +296,7 @@ int get_folder_content(c_folder *folder)
         post_data_len = 77;
     }
 
-    r = prepare_request(REQ_POST, "https://api.digiposte.fr/api/v3/documents/search?max_results=1000&sort=TITLE", post_data, post_data_len, rs);
+    r = prepare_request(REQ_POST, "https://api.digiposte.fr/api/v3/documents/search?max_results=1000&sort=TITLE", (void*)post_data, post_data_len, rs);
     if (r == -1) {
         fputs("prepare_request(): error\n", stderr);
         free(rs->ptr);
@@ -306,7 +347,7 @@ int get_folder_content(c_folder *folder)
     return 0;
 }
 
-int get_file(c_file *file, const char *dest_path)
+int get_file(const c_file *file, const char *dest_path)
 {
     CURLcode code;
     resp_stuct *rs;
@@ -429,7 +470,7 @@ int create_folder(const char *name, const char *parent_id, char *new_id)
 
     post_data_len = name_len + 80;
 
-    r = prepare_request(REQ_POST, "https://api.digiposte.fr/api/v3/folder", post_data, post_data_len, rs);
+    r = prepare_request(REQ_POST, "https://api.digiposte.fr/api/v3/folder", (void*)post_data, post_data_len, rs);
     if (r == -1) {
         fputs("prepare_request(): error\n", stderr);
         free(rs->ptr);
@@ -598,7 +639,7 @@ int delete_object(const char *id, const char is_file)
         memcpy(post_data+69, "\"]}", 3);
     }
 
-    r = prepare_request(REQ_POST, "https://api.digiposte.fr/api/v3/file/tree/delete", post_data, 72, rs);
+    r = prepare_request(REQ_POST, "https://api.digiposte.fr/api/v3/file/tree/delete", (void*)post_data, 72, rs);
     if (r == -1) {
         fputs("prepare_request(): error\n", stderr);
         free(rs->ptr);
@@ -669,7 +710,7 @@ int move_object(const char *id, const char *to_folder_id, const char is_file)
         memcpy(post_data+69, "\"]}", 3);
     }
 
-    r = prepare_request(REQ_PUT_WITH_DATA, url, post_data, 72, rs);
+    r = prepare_request(REQ_PUT_WITH_DATA, url, (void*)post_data, 72, rs);
     if (r == -1) {
         fputs("prepare_request(): error\n", stderr);
         free(rs->ptr);
@@ -699,7 +740,72 @@ int move_object(const char *id, const char *to_folder_id, const char is_file)
     return 0;
 }
 
-int upload_file(c_file *file, const char *to_folder_id, char *new_id)
+int upload_file(const c_file *file, const char *to_folder_id, char *new_id)
 {
-    return -1;
+    CURLcode code;
+    c_folder *folder;
+    json_object *root, *field_id;
+    resp_stuct *rs;
+    int r, n, i;
+    long response_code;
+    post_multipart_data post_mp_data;
+
+    rs = malloc(sizeof(resp_stuct));
+    if (rs == NULL) {
+        perror("malloc()");
+        return -1;
+    }
+    rs->ptr = malloc(BUF_SIZE*sizeof(char));
+    if (rs->ptr == NULL) {
+        perror("malloc()");
+        free(rs);
+        return -1;
+    }
+    rs->fixed_size = 0;
+    rs->response_actual_size = 0;
+    rs->response_allocated_size = BUF_SIZE;
+
+    post_mp_data.file = file;
+    post_mp_data.folder_parent_id = to_folder_id;
+
+    r = prepare_request(REQ_POST_MULTIPART, "https://api.digiposte.fr/api/v3/document", (void*)&post_mp_data, 0, rs);
+    if (r == -1) {
+        fputs("prepare_request(): error\n", stderr);
+        free(rs->ptr);
+        free(rs);
+        return -1;
+    }
+
+    code = curl_easy_perform(curl_handle);
+    if(code != CURLE_OK) {
+        fprintf(stderr, "curl_easy_perform(): %s\n", curl_easy_strerror(code));
+        free(rs->ptr);
+        free(rs);
+        return -1;
+    }
+
+    curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &response_code);
+    if (response_code != 200) {
+        fprintf(stderr, "upload_file(): API returned code %d\n", response_code);
+        free(rs->ptr);
+        free(rs);
+        return -1;
+    }
+
+    root = json_tokener_parse(rs->ptr);
+    if (root == NULL) {
+        fputs("json_tokener_parse(): error\n", stderr);
+        free(rs->ptr);
+        free(rs);
+        return -1;
+    }
+
+    field_id = json_object_object_get(root, "id");
+    memcpy(new_id, json_object_get_string(field_id), 32);
+
+    json_object_put(root);
+    free(rs->ptr);
+    free(rs);
+
+    return 0;
 }
