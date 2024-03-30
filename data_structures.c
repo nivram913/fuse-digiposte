@@ -260,10 +260,69 @@ int find_folder_id(const c_folder *base, const char *id)
 
 int move_file(c_folder *from, c_folder *to, const int index)
 {
-    return -1;
+    c_file *file;
+    int cache_path_len;
+
+    file = add_file(to, from->files[index]->id, from->files[index]->name, from->files[index]->size);
+    if (file == NULL) return -1;
+
+    file->cached = from->files[index]->cached;
+    file->dirty = from->files[index]->dirty;
+    if (file->cached) {
+        cache_path_len = strlen(from->files[index]->cache_path);
+        file->cache_path = malloc(cache_path_len+1);
+        if (file->cache_path == NULL) {
+            perror("malloc()");
+            return -1;
+        }
+        memcpy(file->cache_path, from->files[index]->cache_path, cache_path_len+1);
+    }
+
+    return remove_file(from, index);
 }
 
 int move_folder(c_folder *folder, c_folder *to)
 {
-    return -1;
+    c_folder *new_folder, *parent, **folder_table;
+    int index, i;
+
+    parent = folder->parent;
+
+    index = find_folder_id(parent, folder->id);
+    if (index == -1) {
+        fputs("move_folder(): Unexpected error\n", stderr);
+        return -1;
+    }
+
+    new_folder = add_folder(to, folder->id, folder->name);
+    if (new_folder == NULL) return -1;
+
+    new_folder->files_loaded = folder->files_loaded;
+    new_folder->nb_files = folder->nb_files;
+    new_folder->nb_folders = folder->nb_folders;
+
+    new_folder->files = malloc(new_folder->nb_files * sizeof(c_file*));
+    new_folder->folders = malloc(new_folder->nb_folders * sizeof(c_folder*));
+
+    memcpy(new_folder->files, folder->files, new_folder->nb_files*sizeof(c_file*));
+    for (i=0; i<new_folder->nb_folders; i++) {
+        new_folder->folders[i] = folder->folders[i];
+        new_folder->folders[i]->parent = new_folder;
+    }
+
+    free(folder->name);
+    for (i=index; i < parent->nb_folders-1; i++)
+        parent->folders[i] = parent->folders[i+1];
+    
+    parent->nb_folders--;
+    folder_table = realloc(parent->folders, parent->nb_folders*sizeof(c_folder*));
+    if (folder_table == NULL && parent->nb_folders != 0) {
+        perror("realloc()");
+        return -1;
+    }
+
+    if (parent->nb_folders == 0) parent->folders = NULL;
+    else parent->folders = folder_table;
+
+    return 0;
 }
