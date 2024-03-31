@@ -12,7 +12,7 @@ c_folder* add_folder(c_folder *parent, const char *id, const char *name)
     }
 
     if (parent == NULL) {
-        new->id[0] = '\0';
+        memcpy(new->id, id, 32);
         new->name = NULL;
     }
     else {

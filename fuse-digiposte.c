@@ -44,8 +44,12 @@ static int get_subpath(const char *path, char *subpath, char *name)
     i = path_len-1;
     while (path[i] != '/') i--;
     for (j=0; j<i; j++) subpath[j] = path[j];
-    subpath[j] = '\0';
-    for (k=i; k<=path_len; j++) name[k-i] = path[k];
+    if (j==0) {
+        subpath[j] = '/';
+        subpath[j+1] = '\0';
+    }
+    else subpath[j] = '\0';
+    for (k=i+1; k<=path_len; k++) name[k-(i+1)] = path[k];
 
     return strlen(name);
 }
@@ -144,10 +148,21 @@ static void *dgp_init(struct fuse_conn_info *conn, struct fuse_config *cfg)
     return (void*)ctx;
 }
 
+/*void dgp_sync_rec(const c_folder *folder)
+{
+    int i;
+
+    for (i=0; i<folder->nb_files; i++) {
+        dgp_fsync()
+    }
+}*/
+
 static void dgp_destroy(void* private_data)
 {
     dgp_ctx *ctx = (dgp_ctx*)private_data;
+    c_folder *root;
 
+    //root = ctx->dgp_root;
     //sync fs
 
     free_root(ctx->dgp_root);
@@ -583,7 +598,11 @@ static int dgp_create(const char *path, mode_t mode, struct fuse_file_info *fi)
     name_len = get_subpath(path, subpath, name);
 
     folder = resolve_path(subpath, &index, ctx);
-    if (folder == NULL) return -ENOENT;
+    if (folder == NULL) {
+        free(subpath);
+        free(name);
+        return -ENOENT;
+    }
     if (index != -1) {
         free(subpath);
         free(name);
@@ -632,12 +651,12 @@ static int dgp_open(const char *path, struct fuse_file_info *fi)
 {
     c_folder *folder;
     c_file *file;
-    int index;
+    int r, index;
     struct fuse_context *fctx = fuse_get_context();
     dgp_ctx *ctx = (dgp_ctx*)fctx->private_data;
 
-    //Handled by dgp_create() and dgp_truncate() ?
-    if (fi->flags & O_CREAT || fi->flags & O_TRUNC) return -EINVAL;
+    //Handled by dgp_create()
+    if (fi->flags & O_CREAT) return -EINVAL;
 
     folder = resolve_path(path, &index, ctx);
     if (folder == NULL) return -ENOENT;
@@ -654,6 +673,8 @@ static int dgp_open(const char *path, struct fuse_file_info *fi)
         perror("open()");
         return -errno;
     }
+
+    if (fi->flags & O_TRUNC) return dgp_truncate(path, 0, fi);
 
     return 0;
 }
@@ -699,13 +720,6 @@ static int dgp_statfs(const char *path, struct statvfs *stbuf)
     return -ENOSYS;
 }
 
-static int dgp_release(const char *path, struct fuse_file_info *fi)
-{
-    (void) path;
-    close(fi->fh);
-    return 0;
-}
-
 static int dgp_fsync(const char *path, int isdatasync, struct fuse_file_info *fi)
 {
     c_folder *folder;
@@ -742,6 +756,7 @@ static int dgp_fsync(const char *path, int isdatasync, struct fuse_file_info *fi
     file->dirty = 0;
     memcpy(new_cache_path, file->cache_path, sizeof(CACHE_PATH)-1);
     memcpy(new_cache_path+sizeof(CACHE_PATH)-1, new_id, 32);
+    new_cache_path[sizeof(CACHE_PATH)+31] = '\0';
 
     if (rename(file->cache_path, new_cache_path) != 0) {
         perror("rename()");
@@ -750,6 +765,24 @@ static int dgp_fsync(const char *path, int isdatasync, struct fuse_file_info *fi
     }
 
     memcpy(file->cache_path, new_cache_path, sizeof(CACHE_PATH)+32);
+
+    return 0;
+}
+
+static int dgp_release(const char *path, struct fuse_file_info *fi)
+{
+    c_folder *folder;
+    c_file *file;
+    int index;
+    struct fuse_context *fctx = fuse_get_context();
+    dgp_ctx *ctx = (dgp_ctx*)fctx->private_data;
+
+    folder = resolve_path(path, &index, ctx);
+    if (folder == NULL) return -ENOENT;
+    if (index == -1) return -EISDIR;
+    if (folder->files[index]->dirty) dgp_fsync(path, 1, fi);
+
+    close(fi->fh);
 
     return 0;
 }

@@ -125,7 +125,7 @@ static resp_stuct* prepare_request(const req_type req_type, const char *url, con
         curl_mime_name(field, "archive_size");
         curl_mime_data(field, size, CURL_ZERO_TERMINATED);
 
-        if (post_mp_data->folder_parent_id != NULL) {
+        if (post_mp_data->folder_parent_id[0] != 'r') {
             field = curl_mime_addpart(form);
             curl_mime_name(field, "folder_id");
             curl_mime_data(field, post_mp_data->folder_parent_id, 32);
@@ -230,7 +230,7 @@ c_folder* get_folders()
     }
 
     curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &response_code);
-    if (response_code != 200) {
+    if (response_code/100 != 2) {
         fprintf(stderr, "get_folders(): API returned code %d\n", response_code);
         free(rs->ptr);
         free(rs);
@@ -245,7 +245,7 @@ c_folder* get_folders()
         return NULL;
     }
 
-    folder = add_folder(NULL, NULL, NULL);
+    folder = add_folder(NULL, "root-000000000000000000000000000", NULL);
     if (folder == NULL) {
         free(rs->ptr);
         free(rs);
@@ -313,7 +313,7 @@ int get_folder_content(c_folder *folder)
     }
 
     curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &response_code);
-    if (response_code != 200) {
+    if (response_code/100 != 2) {
         fprintf(stderr, "get_folder_content(): API returned code %d\n", response_code);
         free(rs->ptr);
         free(rs);
@@ -417,7 +417,7 @@ int get_file(const c_file *file, const char *dest_path)
     }
 
     curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &response_code);
-    if (response_code != 200) {
+    if (response_code/100 != 2) {
         fprintf(stderr, "get_file(): API returned code %d\n", response_code);
         munmap(rs->ptr, file->size);
         close(fd);
@@ -489,7 +489,7 @@ int create_folder(const char *name, const char *parent_id, char *new_id)
     }
 
     curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &response_code);
-    if (response_code != 200) {
+    if (response_code/100 != 2) {
         fprintf(stderr, "create_folder(): API returned code %d\n", response_code);
         free(rs->ptr);
         free(rs);
@@ -590,7 +590,7 @@ int rename_object(const char *id, const char *new_name, const char is_file)
     }
 
     curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &response_code);
-    if (response_code != 200) {
+    if (response_code/100 != 2) {
         fprintf(stderr, "rename_object(): API returned code %d\n", response_code);
         free(rs->ptr);
         free(rs);
@@ -639,7 +639,7 @@ int delete_object(const char *id, const char is_file)
         memcpy(post_data+69, "\"]}", 3);
     }
 
-    r = prepare_request(REQ_POST, "https://api.digiposte.fr/api/v3/file/tree/delete", (void*)post_data, 72, rs);
+    r = prepare_request(REQ_POST, "https://api.digiposte.fr/api/v3/file/tree/trash", (void*)post_data, 72, rs);
     if (r == -1) {
         fputs("prepare_request(): error\n", stderr);
         free(rs->ptr);
@@ -656,7 +656,7 @@ int delete_object(const char *id, const char is_file)
     }
 
     curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &response_code);
-    if (response_code != 200) {
+    if (response_code/100 != 2) {
         fprintf(stderr, "delete_object(): API returned code %d\n", response_code);
         free(rs->ptr);
         free(rs);
@@ -727,7 +727,7 @@ int move_object(const char *id, const char *to_folder_id, const char is_file)
     }
 
     curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &response_code);
-    if (response_code != 200) {
+    if (response_code/100 != 2) {
         fprintf(stderr, "move_object(): API returned code %d\n", response_code);
         free(rs->ptr);
         free(rs);
@@ -785,7 +785,7 @@ int upload_file(const c_file *file, const char *to_folder_id, char *new_id)
     }
 
     curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &response_code);
-    if (response_code != 200) {
+    if (response_code/100 != 2) {
         fprintf(stderr, "upload_file(): API returned code %d\n", response_code);
         free(rs->ptr);
         free(rs);
