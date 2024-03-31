@@ -258,13 +258,13 @@ int find_folder_id(const c_folder *base, const char *id)
     return -1;
 }
 
-int move_file(c_folder *from, c_folder *to, const int index)
+c_file* move_file(c_folder *from, c_folder *to, const int index)
 {
     c_file *file;
     int cache_path_len;
 
     file = add_file(to, from->files[index]->id, from->files[index]->name, from->files[index]->size);
-    if (file == NULL) return -1;
+    if (file == NULL) return NULL;
 
     file->cached = from->files[index]->cached;
     file->dirty = from->files[index]->dirty;
@@ -273,15 +273,17 @@ int move_file(c_folder *from, c_folder *to, const int index)
         file->cache_path = malloc(cache_path_len+1);
         if (file->cache_path == NULL) {
             perror("malloc()");
-            return -1;
+            return NULL;
         }
         memcpy(file->cache_path, from->files[index]->cache_path, cache_path_len+1);
     }
 
-    return remove_file(from, index);
+    if (remove_file(from, index) == -1) return NULL;
+    
+    return file;
 }
 
-int move_folder(c_folder *folder, c_folder *to)
+c_folder* move_folder(c_folder *folder, c_folder *to)
 {
     c_folder *new_folder, *parent, **folder_table;
     int index, i;
@@ -291,11 +293,11 @@ int move_folder(c_folder *folder, c_folder *to)
     index = find_folder_id(parent, folder->id);
     if (index == -1) {
         fputs("move_folder(): Unexpected error\n", stderr);
-        return -1;
+        return NULL;
     }
 
     new_folder = add_folder(to, folder->id, folder->name);
-    if (new_folder == NULL) return -1;
+    if (new_folder == NULL) return NULL;
 
     new_folder->files_loaded = folder->files_loaded;
     new_folder->nb_files = folder->nb_files;
@@ -304,12 +306,12 @@ int move_folder(c_folder *folder, c_folder *to)
     new_folder->files = malloc(new_folder->nb_files * sizeof(c_file*));
     if (new_folder->files == NULL) {
         perror("malloc()");
-        return -1;
+        return NULL;
     }
     new_folder->folders = malloc(new_folder->nb_folders * sizeof(c_folder*));
     if (new_folder->folders == NULL) {
         perror("malloc()");
-        return -1;
+        return NULL;
     }
 
     memcpy(new_folder->files, folder->files, new_folder->nb_files*sizeof(c_file*));
@@ -326,11 +328,11 @@ int move_folder(c_folder *folder, c_folder *to)
     folder_table = realloc(parent->folders, parent->nb_folders*sizeof(c_folder*));
     if (folder_table == NULL && parent->nb_folders != 0) {
         perror("realloc()");
-        return -1;
+        return NULL;
     }
 
     if (parent->nb_folders == 0) parent->folders = NULL;
     else parent->folders = folder_table;
 
-    return 0;
+    return new_folder;
 }

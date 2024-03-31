@@ -104,12 +104,12 @@ int find_folder_id(const c_folder *base, const char *id);
 Move the file at index from a folder to another
 Return -1 on error, 0 otherwise
 */
-int move_file(c_folder *from, c_folder *to, const int index);
+c_file* move_file(c_folder *from, c_folder *to, const int index);
 
 /*
 Move the folder to another folder
 Return -1 on error, 0 otherwise
 */
-int move_folder(c_folder *folder, c_folder *to);
+c_folder* move_folder(c_folder *folder, c_folder *to);
 
 #endif

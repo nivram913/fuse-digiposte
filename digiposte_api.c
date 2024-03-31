@@ -465,10 +465,15 @@ int create_folder(const char *name, const char *parent_id, char *new_id)
         return -1;
     }
     sprintf(post_data, "{\"name\": \"%s\", \"favorite\": false, \"parent_id\": \"", name);
-    memcpy(post_data+46+name_len, parent_id, 32);
-    memcpy(post_data+78+name_len, "\"}", 2);
-
-    post_data_len = name_len + 80;
+    if (parent_id[0] == 'r') {
+        memcpy(post_data+46+name_len, "\"}", 2);
+        post_data_len = name_len + 48;
+    }
+    else {
+        memcpy(post_data+46+name_len, parent_id, 32);
+        memcpy(post_data+78+name_len, "\"}", 2);
+        post_data_len = name_len + 80;
+    }
 
     r = prepare_request(REQ_POST, "https://api.digiposte.fr/api/v3/folder", (void*)post_data, post_data_len, rs);
     if (r == -1) {
@@ -677,7 +682,7 @@ int move_object(const char *id, const char *to_folder_id, const char is_file)
     long response_code;
     char post_data[72], url[83];
 
-    if (to_folder_id == NULL) memcpy(url, "https://api.digiposte.fr/api/v3/file/tree/move", 47);
+    if (to_folder_id[0] == 'r') memcpy(url, "https://api.digiposte.fr/api/v3/file/tree/move", 47);
     else {
         memcpy(url, "https://api.digiposte.fr/api/v3/file/tree/move?to=", 50);
         memcpy(url+50, to_folder_id, 32);
