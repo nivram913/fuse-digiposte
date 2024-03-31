@@ -2,7 +2,15 @@
 
 A FUSE implementation for Digiposte online storage service
 
-For the moment: read-only filesystem, authorization token in argument
+Read-write, single threaded, authorization token in argument. Run with :
+
+```
+./fuse-digiposte --auth xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx -s /mnt/dgpfs
+```
+
+You may want to add the `-f` flag to have error messages.
+
+Unmount with `fusermount -u /mnt/dgpfs`
 
 Because I'm not a profesional programmer but a security engineer (and this FS is written in C), I created an AppArmor profile to prevent potential vulnerabilities to harm the system ;)
 
