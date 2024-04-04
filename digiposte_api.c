@@ -174,7 +174,7 @@ static resp_stuct* prepare_request(const req_type req_type, const char *url, con
 static void construct_folder_rec(c_folder *folder, json_object *root)
 {
     int n, i;
-    json_object *j_folders, *tmp, *field_id, *field_name;
+    json_object *j_folders, *tmp, *field_id, *field_name, *field_location;
     c_folder *new;
 
     j_folders = json_object_object_get(root, "folders");
@@ -183,7 +183,9 @@ static void construct_folder_rec(c_folder *folder, json_object *root)
         tmp = json_object_array_get_idx(j_folders, i);
         field_id = json_object_object_get(tmp, "id");
         field_name = json_object_object_get(tmp, "name");
-        new = add_folder(folder, json_object_get_string(field_id), json_object_get_string(field_name));
+        field_location = json_object_object_get(tmp, "location");
+        if (strncmp(json_object_get_string(field_location), "TRASH", 6) != 0)
+            new = add_folder(folder, json_object_get_string(field_id), json_object_get_string(field_name));
 
         construct_folder_rec(new, tmp);
     }
