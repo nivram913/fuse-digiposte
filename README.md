@@ -2,7 +2,7 @@
 
 A FUSE implementation for Digiposte online storage service
 
-Read-write, single threaded, authorization token in argument. Run with :
+Read-write, single threaded, authorization token in argument. Run with:
 
 ```
 ./fuse-digiposte --auth xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx -s /mnt/dgpfs
@@ -12,7 +12,18 @@ You may want to add the `-f` flag to have error messages.
 
 Unmount with `fusermount -u /mnt/dgpfs`
 
-Because I'm not a profesional programmer but a security engineer (and this FS is written in C), I created an AppArmor profile to prevent potential vulnerabilities to harm the system ;)
+## Dependancies
+
+On Debian 12, install these packages:
+```
+libfuse3-dev
+libcurl4-openssl-dev
+libjson-c-dev
+```
+
+## Security
+
+Here is an AppArmor profile to confine fuse-digiposte:
 
 ```
 #include <tunables/global>
