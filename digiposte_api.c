@@ -1,4 +1,7 @@
 #include <json-c/json.h>
+#ifdef USE_APPARMOR
+#include <sys/apparmor.h>
+#endif
 #include "digiposte_api.h"
 
 static int read_fd, write_fd;
@@ -20,7 +23,9 @@ int init_api(const char *authorization)
         return -1;
     }
     else if (child == 0) {
-        //AppArmor change profile here
+#ifdef USE_APPARMOR
+        aa_change_onexec("fuse-digiposte//api-subsystem");
+#endif
         
         close(stc_pipe[0]);
         close(cts_pipe[1]);

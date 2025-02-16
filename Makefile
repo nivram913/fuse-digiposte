@@ -1,7 +1,7 @@
 SHELL = /bin/bash
 CC = gcc
-CFLAGS = -W -Wall -std=c99 -I/usr/include/fuse3 -I/usr/include/json-c
-LFLAGS = -lfuse3 -lpthread -lcurl -ljson-c
+CFLAGS = -W -Wall -std=c99 -I/usr/include/fuse3 -I/usr/include/json-c -DUSE_APPARMOR=1
+LFLAGS = -lfuse3 -lpthread -ljson-c -lapparmor
 OBJS = $(patsubst %.c, %.o, $(wildcard *.c))
 
 %.o : %.c
