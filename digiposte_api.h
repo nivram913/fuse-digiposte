@@ -4,33 +4,21 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <stdio.h>
+#include <string.h>
 #include "data_structures.h"
 
 #ifndef DGP_API_H
 #define DGP_API_H
 
 #define BUF_SIZE 4096
+#define CHUNK_SIZE 1024
 
 typedef struct resp_stuct {
     char *ptr;
-    char fixed_size;
     size_t response_allocated_size;
     size_t response_actual_size;
 } resp_stuct;
-
-typedef enum {
-    REQ_GET,
-    REQ_POST,
-    REQ_POST_MULTIPART,
-    REQ_PUT,
-    REQ_PUT_WITH_DATA,
-    REQ_DELETE
-} req_type;
-
-typedef struct {
-    char *folder_parent_id;
-    c_file *file;
-} post_multipart_data;
 
 /*
 Initialize API communication

@@ -119,9 +119,9 @@ class DigiposteAPI():
     
     def delete_object(self, object_id, is_file):
         if is_file:
-            payload = {"document_ids": ["{}".fomat(object_id)], "folder_ids": []}
+            payload = {"document_ids": ["{}".format(object_id)], "folder_ids": []}
         else:
-            payload = {"document_ids": [], "folder_ids": ["{}".fomat(object_id)]}
+            payload = {"document_ids": [], "folder_ids": ["{}".format(object_id)]}
         
         try:
             resp = self._session.post("https://api.digiposte.fr/api/v3/file/tree/trash", json=payload, allow_redirects=False)
@@ -131,7 +131,7 @@ class DigiposteAPI():
             print(err)
             return "err"
         
-        if resp.status_code != 200:
+        if resp.status_code != 204:
             print("delete_object() HTTP error code:", resp.status_code)
             return "err"
         
@@ -139,9 +139,9 @@ class DigiposteAPI():
     
     def move_object(self, object_id, dest_folder_id, is_file):
         if is_file:
-            payload = {"document_ids": ["{}".fomat(object_id)], "folder_ids": []}
+            payload = {"document_ids": ["{}".format(object_id)], "folder_ids": []}
         else:
-            payload = {"document_ids": [], "folder_ids": ["{}".fomat(object_id)]}
+            payload = {"document_ids": [], "folder_ids": ["{}".format(object_id)]}
         
         try:
             resp = self._session.put("https://api.digiposte.fr/api/v3/file/tree/move", params={"to": dest_folder_id}, json=payload, allow_redirects=False)
@@ -151,7 +151,7 @@ class DigiposteAPI():
             print(err)
             return "err"
         
-        if resp.status_code != 200:
+        if resp.status_code != 204:
             print("move_object() HTTP error code:", resp.status_code)
             return "err"
         
@@ -235,69 +235,75 @@ if __name__ == "__main__":
     
     if args.server:
         read_f = os.fdopen(args.server[0], mode='rb')
-        write_f = os.fdopen(args.server[1], mode='w')
+        write_fd = args.server[1]
+        
+        os.write(write_fd, b"ready" + b'\0')
         
         buffer = read_f.readline()
-        while buffer != "":
+        while buffer != b"":
             com = buffer[:-1].split(b'\0')
-            if com[0] == "get_folders_tree":
+            if com[0] == b"get_folders_tree":
                 tree = dgp_api.get_folders_tree()
-                write_f.write(tree + '\0')
+                os.write(write_fd, tree.encode() + b'\0')
             
-            elif com[0] == "get_folder_content":
-                content = dgp_api.get_folder_content(com[1])
-                write_f.write(content + '\0')
+            elif com[0] == b"get_folder_content":
+                content = dgp_api.get_folder_content(com[1].decode())
+                os.write(write_fd, content.encode() + b'\0')
             
-            elif com[0] == "get_file":
-                if dgp_api.get_file(com[1], com[2]) == "err":
-                    write_f.write('err' + '\0')
+            elif com[0] == b"get_file":
+                if dgp_api.get_file(com[1].decode(), com[2].decode()) == "err":
+                    os.write(write_fd, b'err' + b'\0')
                 else:
-                    write_f.write('OK' + '\0')
+                    os.write(write_fd, b'OK' + b'\0')
             
-            elif com[0] == "create_folder":
-                folder_id = dgp_api.create_folder(com[1], com[2])
-                write_f.write(folder_id + '\0')
+            elif com[0] == b"create_folder":
+                folder_id = dgp_api.create_folder(com[1].decode(), com[2].decode())
+                os.write(write_fd, folder_id.encode() + b'\0')
             
-            elif com[0] == "rename_object":
-                is_file = com[1] == '1'
-                if dgp_api.rename_object(com[2], com[3], is_file) == "err":
-                    write_f.write('err' + '\0')
+            elif com[0] == b"rename_object":
+                is_file = com[1] == b'1'
+                if dgp_api.rename_object(com[2].decode(), com[3].decode(), is_file) == "err":
+                    os.write(write_fd, b'err' + b'\0')
                 else:
-                    write_f.write('OK' + '\0')
+                    os.write(write_fd, b'OK' + b'\0')
             
-            elif com[0] == "delete_object":
-                is_file = com[1] == '1'
-                if dgp_api.delete_object(com[2], is_file) == "err":
-                    write_f.write('err' + '\0')
+            elif com[0] == b"delete_object":
+                is_file = com[1] == b'1'
+                if dgp_api.delete_object(com[2].decode(), is_file) == "err":
+                    os.write(write_fd, b'err' + b'\0')
                 else:
-                    write_f.write('OK' + '\0')
+                    os.write(write_fd, b'OK' + b'\0')
             
-            elif com[0] == "move_object":
-                is_file = com[1] == '1'
-                if com[3] == '':
+            elif com[0] == b"move_object":
+                is_file = com[1] == b'1'
+                if com[3] == b'':
                     dest_folder_id = None
                 else:
-                    dest_folder_id = com[3]
+                    dest_folder_id = com[3].decode()
                 
-                if dgp_api.move_object(com[2], dest_folder_id, is_file) == "err":
-                    write_f.write('err' + '\0')
+                if dgp_api.move_object(com[2].decode(), dest_folder_id, is_file) == "err":
+                    os.write(write_fd, b'err' + b'\0')
                 else:
-                    write_f.write('OK' + '\0')
+                    os.write(write_fd, b'OK' + b'\0')
             
-            elif com[0] == "upload_file":
-                file_id = dgp_api.move_object(com[1], com[2], com[3], com[4])
-                write_f.write(file_id + '\0')
+            elif com[0] == b"upload_file":
+                if com[1] == b'':
+                    dest_folder_id = None
+                else:
+                    dest_folder_id = com[1].decode()
+                file_id = dgp_api.upload_file(dest_folder_id, com[2].decode(), com[3].decode(), com[4].decode())
+                os.write(write_fd, file_id.encode() + b'\0')
             
             else:
                 print("Unknown command", com[0], "with parameters", buffer[:-1].split(b'\0')[1:])
-                write_f.write('err' + '\0')
+                os.write(write_fd, b'err' + b'\0')
             
             buffer = read_f.readline()
         
         print("Pipe closed by client. Exiting...")
         dgp_api.disconnect()
         read_f.close()
-        write_f.close()
+        os.close(write_fd)
         
     else:
         if args.action == "get_folders_tree":
