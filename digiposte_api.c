@@ -24,7 +24,10 @@ int init_api(const char *authorization)
     }
     else if (child == 0) {
 #ifdef USE_APPARMOR
-        aa_change_onexec("fuse-digiposte//api-subsystem");
+        if (aa_change_onexec("fuse-digiposte//api-subsystem") == -1) {
+            perror("aa_change_onexec()");
+            exit(-errno);
+        }
 #endif
         
         close(stc_pipe[0]);
