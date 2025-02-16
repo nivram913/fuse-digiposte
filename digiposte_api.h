@@ -13,6 +13,7 @@
 
 #define BUF_SIZE 4096
 #define CHUNK_SIZE 1024
+#define DGP_API_SUBSYSTEM "/usr/local/bin/DigiposteAPI.py"
 
 typedef struct resp_stuct {
     char *ptr;

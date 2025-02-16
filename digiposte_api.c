@@ -28,7 +28,7 @@ int init_api(const char *authorization)
         snprintf(args_read_fd, 4, "%d", cts_pipe[0]);
         snprintf(args_write_fd, 4, "%d", stc_pipe[1]);
         
-        execlp("python3", "python3", "/home/nivram/gits/fuse-digiposte/DigiposteAPI.py", "--server", args_read_fd, args_write_fd, "--token", authorization, NULL);
+        execlp("python3", "python3", DGP_API_SUBSYSTEM, "--server", args_read_fd, args_write_fd, "--token", authorization, NULL);
         perror("execlp()");
         exit(-errno);
     }
