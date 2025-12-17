@@ -28,7 +28,7 @@ class DigiposteAPI():
         except requests.Timeout:
             return "err"
         except (requests.RequestException, requests.ConnectionError, requests.TooManyRedirects) as e:
-            print(err)
+            print(e)
             return "err"
         
         if resp.status_code != 200:
@@ -45,7 +45,7 @@ class DigiposteAPI():
         except requests.Timeout:
             return "err"
         except (requests.RequestException, requests.ConnectionError, requests.TooManyRedirects) as e:
-            print(err)
+            print(e)
             return "err"
         
         if resp.status_code != 200:
@@ -60,7 +60,7 @@ class DigiposteAPI():
         except requests.Timeout:
             return "err"
         except (requests.RequestException, requests.ConnectionError, requests.TooManyRedirects) as e:
-            print(err)
+            print(e)
             return "err"
         
         if resp.status_code != 200:
@@ -84,7 +84,7 @@ class DigiposteAPI():
         except requests.Timeout:
             return "err"
         except (requests.RequestException, requests.ConnectionError, requests.TooManyRedirects) as e:
-            print(err)
+            print(e)
             return "err"
         
         if resp.status_code != 200:
@@ -108,7 +108,7 @@ class DigiposteAPI():
         except requests.Timeout:
             return "err"
         except (requests.RequestException, requests.ConnectionError, requests.TooManyRedirects) as e:
-            print(err)
+            print(e)
             return "err"
         
         if resp.status_code != 200:
@@ -128,7 +128,7 @@ class DigiposteAPI():
         except requests.Timeout:
             return "err"
         except (requests.RequestException, requests.ConnectionError, requests.TooManyRedirects) as e:
-            print(err)
+            print(e)
             return "err"
         
         if resp.status_code != 204:
@@ -148,7 +148,7 @@ class DigiposteAPI():
         except requests.Timeout:
             return "err"
         except (requests.RequestException, requests.ConnectionError, requests.TooManyRedirects) as e:
-            print(err)
+            print(e)
             return "err"
         
         if resp.status_code != 204:
@@ -174,7 +174,7 @@ class DigiposteAPI():
         except requests.Timeout:
             return "err"
         except (requests.RequestException, requests.ConnectionError, requests.TooManyRedirects) as e:
-            print(err)
+            print(e)
             return "err"
         
         if resp.status_code != 200:

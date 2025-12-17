@@ -305,7 +305,7 @@ int get_file(const c_file *file, const char *dest_path)
 
 int create_folder(const char *name, const char *parent_id, char *new_id)
 {
-    char req[128], resp[33];
+    char req[512], resp[33];
     int r, i, name_len;
     
     memcpy(req, "create_folder", 14);
@@ -345,7 +345,7 @@ int create_folder(const char *name, const char *parent_id, char *new_id)
 int rename_object(const char *id, const char *new_name, const char is_file)
 {
     int r, name_len;
-    char req[128], resp[4];
+    char req[512], resp[4];
     
     memcpy(req, "rename_object", 14);
     if (is_file) req[14] = '1';
@@ -465,7 +465,7 @@ int move_object(const char *id, const char *to_folder_id, const char is_file)
 int upload_file(const c_file *file, const char *to_folder_id, char *new_id)
 {
     int r, len, i;
-    char req[128], resp[33];
+    char req[512], resp[33];
     
     memcpy(req, "upload_file", 12);
     if (to_folder_id[0] == 'r') {
