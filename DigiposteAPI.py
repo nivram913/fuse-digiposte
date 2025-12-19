@@ -4,6 +4,17 @@ import os
 import sys
 import argparse
 import requests
+import webview
+import threading
+import time
+
+class AuthAPI:
+    def __init__(self):
+        self.token = None
+
+    def receive_token(self, token):
+        self.token = token
+        return "OK"
 
 class DigiposteAPI():
     def __init__(self, token=None):
@@ -11,13 +22,51 @@ class DigiposteAPI():
         
         if token is None:
             self._token = self._authenticate()
+            if self._token is None:
+                print("No authentication token retrieved")
+                exit(1)
         else:
             self._token = token[0]
         
         self._session.headers.update({"Authorization": "Bearer {}".format(self._token), "Accept": "application/json"})
     
     def _authenticate(self):
-        return "xxx"
+        def inject_js(window):
+            js = f"""
+            (function() {{
+                try {{
+                    const token = sessionStorage.getItem("access_token");
+                    if (token) {{
+                        window.pywebview.api.receive_token(token);
+                    }}
+                }} catch (e) {{
+                    console.log("Erreur JS:", e);
+                }}
+            }})();
+            """
+            window.evaluate_js(js)
+        
+        api = AuthAPI()
+
+        window = webview.create_window(
+            "Connexion Digiposte",
+            "https://secure.digiposte.fr/identification-plus",
+            js_api=api,
+            width=480,
+            height=720
+        )
+
+        def monitor():
+            while api.token is None:
+                time.sleep(1)
+                inject_js(window)
+
+            window.destroy()
+
+        threading.Thread(target=monitor, daemon=True).start()
+        webview.start()
+        
+        return api.token
     
     def disconnect(self):
         pass

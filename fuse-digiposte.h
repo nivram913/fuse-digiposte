@@ -28,12 +28,10 @@
 #define DGP_FUSE_H
 
 #define CACHE_PATH "/tmp/.cache-dgp-fuse/"
-#define AUTHORIZATION_TOKEN ""
 
 typedef struct dgp_ctx {
     c_folder *dgp_root;
     char root_loaded;
-    char *authrization_token;
 } dgp_ctx;
 
 #endif

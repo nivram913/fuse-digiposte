@@ -2,10 +2,10 @@
 
 A FUSE implementation for Digiposte online storage service
 
-Read-write, single threaded, authorization token in argument. Run with:
+Read-write, single threaded, interactive authentication. Run with:
 
 ```
-./fuse-digiposte --auth xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx -s /mnt/dgpfs
+./fuse-digiposte -s /mnt/dgpfs
 ```
 
 You may want to add the `-f` flag to have error messages.
@@ -20,7 +20,7 @@ libfuse3-dev
 libjson-c-dev
 ```
 
-The Python subsystem use `requests` to handle API communication.
+The Python subsystem use `requests` to handle API communication and `webview` (`python3-webview` Debian package) to handle interactive authentication.
 
 ## Security
 
@@ -52,10 +52,18 @@ profile fuse-digiposte /usr/local/bin/fuse-digiposte {
         #include <abstractions/nameservice>
         #include <abstractions/python>
         #include <abstractions/user-tmp>
-        
+        #include <abstractions/X>
+        #include <abstractions/dconf>
+        #include <abstractions/fonts>
+        #include <abstractions/freedesktop.org>
+        #include <abstractions/gtk>
+
         /usr/local/bin/{,DigiposteAPI.py} r,
         /usr/bin/python3* r,
         /etc/ssl/openssl.cnf r,
+        /usr/lib/x86_64-linux-gnu/webkit2gtk-4.0/WebKitNetworkProcess PUx,
+        /usr/lib/x86_64-linux-gnu/webkit2gtk-4.0/WebKitWebProcess PUx,
+
     }
 }
 ```

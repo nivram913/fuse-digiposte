@@ -23,10 +23,9 @@ typedef struct resp_stuct {
 
 /*
 Initialize API communication
-Takes authorization bearer
 Return 0 on success, -1 otherwise
 */
-int init_api(const char *authorization);
+int init_api();
 
 /*
 Free all objects set up earlier by init_api()

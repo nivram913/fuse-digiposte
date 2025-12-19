@@ -6,7 +6,7 @@
 
 static int read_fd, write_fd;
 
-int init_api(const char *authorization)
+int init_api()
 {
     int cts_pipe[2], stc_pipe[2], child;
     char args_read_fd[4], args_write_fd[4];
@@ -36,7 +36,7 @@ int init_api(const char *authorization)
         snprintf(args_read_fd, 4, "%d", cts_pipe[0]);
         snprintf(args_write_fd, 4, "%d", stc_pipe[1]);
         
-        execlp("python3", "python3", DGP_API_SUBSYSTEM, "--server", args_read_fd, args_write_fd, "--token", authorization, NULL);
+        execlp("python3", "python3", DGP_API_SUBSYSTEM, "--server", args_read_fd, args_write_fd, NULL);
         perror("execlp()");
         exit(-errno);
     }

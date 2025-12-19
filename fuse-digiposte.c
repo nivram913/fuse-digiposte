@@ -123,7 +123,7 @@ static void *dgp_init(struct fuse_conn_info *conn, struct fuse_config *cfg)
 
     ctx = fuse_get_context()->private_data;
 
-    if (init_api(ctx->authrization_token) == -1) {
+    if (init_api() == -1) {
         free(ctx);
         fputs("init_api(): error\n", stderr);
         exit(-1);
@@ -219,7 +219,6 @@ static void dgp_destroy(void* private_data)
 
     free_root(ctx->dgp_root);
     free_api();
-    free(ctx->authrization_token);
     free(ctx);
 
     directory = opendir(CACHE_PATH);
@@ -891,9 +890,6 @@ static const struct fuse_operations dgp_oper = {
 
 int main(int argc, char *argv[])
 {
-    enum { MAX_ARGS = 10 };
-    int i, new_argc, token_len;
-    char *new_argv[MAX_ARGS];
     dgp_ctx *ctx;
 
     ctx = malloc(sizeof(dgp_ctx));
@@ -903,33 +899,9 @@ int main(int argc, char *argv[])
     }
     ctx->dgp_root = NULL;
     ctx->root_loaded = 0;
-    ctx->authrization_token = NULL;
 
     umask(0);
-    for (i=0, new_argc=0; (i<argc) && (new_argc<MAX_ARGS); i++) {
-        if (!strcmp(argv[i], "--auth")) {
-            if (i == argc) {
-                fputs("Authorization token needed\n", stderr);
-                return -1;
-            }
-            token_len = strlen(argv[i+1]);
-            ctx->authrization_token = malloc(token_len * sizeof(char));
-            if (ctx->authrization_token == NULL) {
-                perror("malloc()");
-                return -errno;
-            }
-            strcpy(ctx->authrization_token, argv[i+1]);
-            i++;
-        } else {
-            new_argv[new_argc++] = argv[i];
-        }
-    }
 
-    if (ctx->authrization_token == NULL) {
-        fputs("Authorization token needed\n", stderr);
-        return -1;
-    }
-
-    return fuse_main(new_argc, new_argv, &dgp_oper, ctx);
+    return fuse_main(argc, argv, &dgp_oper, ctx);
 }
 
